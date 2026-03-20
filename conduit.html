@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>placeholder</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: monospace;
+    }
+
+    canvas {
+      display: block;
+      cursor: crosshair;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="game"></canvas>
+  <script>
+    const canvas = document.getElementById("game"), ctx = canvas.getContext("2d");
+    let w, h, camX = 0, camY = 0, camZoom = 1, controlsLocked = !0;
+    let lastLevelIndex = localStorage.getItem('storedLevel') !== null ? parseInt(localStorage.getItem('storedLevel')) : -1, levelTimer = 0, currentLevelName = "";
+    let walls = [], hazards = [], gravityZones = [], goal = { x: 0, y: 0, w: 100, h: 100 };
+    let camFollX = 0, camFollY = 0, paused = false, gridShown = false, zoomStrength = 0.0005;
+    let GROUND_FRICTION = 0.87, tilt = 0;
+
+    const rand = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
+    window.onresize = resize; resize();
+
+    const AIR_CONTROL = 0.2, AIR_FRICTION = 0.98, GRAVITY = 0.9, defaultGravZoneStr = 0.34;
+    const grapple = {
+      x: 0, y: 0, vx: 0, vy: 0,
+      elasticity: 0.006, pullStrength: 1.2, stiffness: 1, strength: 60,
+      active: !1, attached: !1, returning: !1, wasInGZone: !1
+    };
+    const player = { x: 100, y: 100, vx: 0, vy: 0, size: 10, coyote: 0, dashCD: 0, canDash: !0, onGround: !1 };
+    const keys = {}, mouse = { x: 0, y: 0 };
+    const legs = [
+      { x: 0, y: 0, targetX: 0, targetY: 0, side: -1, stepping: !1 },
+      { x: 0, y: 0, targetX: 0, targetY: 0, side: 1, stepping: !1 }
+    ];
+
+    const levels = [
+      {
+        name: "GAUNTLET",
+        build: () => {
+          walls = [
+            { x: -1500, y: -200, w: 1500, h: 2300 },
+            { x: 0, y: -200, w: 8000, h: 100 },
+            { x: 800, y: 600, w: 400, h: 400 },
+
+            { x: 1500, y: 900, w: 400, h: 400 },
+            { x: 2800, y: 900, w: 1100, h: 100 },
+            { x: 200, y: 300, w: 600, h: 700 },
+            { x: 1800, y: 100, w: 100, h: 800 },
+            { x: 1200, y: 100, w: 600, h: 100 },
+
+            { x: 3200, y: -100, w: 300, h: 800 },
+            { x: 400, y: -100, w: 400, h: 400 },
+            { x: 3500, y: -100, w: 2000, h: 500 },
+            { x: 5000, y: 800, w: 1000, h: 500 },
+
+            { x: 6900, y: 300, w: 1100, h: 1800 },
+            { x: 8000, y: -200, w: 1500, h: 2300 },
+            { x: 0, y: 1300, w: 2100, h: 800 },
+          ];
+          hazards = [
+            { x: 1900, y: 1300, w: 5000, h: 800 },
+            { x: 1200, y: 200, w: 600, h: 100 }
+          ];
+          gravityZones = [
+            { x: 1200, y: 900, w: 300, h: 400, strength: -defaultGravZoneStr },
+            { x: 2800, y: 800, w: 1100, h: 100, strength: -defaultGravZoneStr }
+          ];
+          goal = { x: 7400, y: 200, w: 100, h: 100 };
+          player.x = 300; player.y = 200;
+        }
+      },
+      {
+        name: "INERTIA",
+        build: () => {
+          walls = [
+            { x: 0, y: 800, w: 600, h: 1200 },
+            { x: 2000, y: 500, w: 1200, h: 500 },
+            { x: 2000, y: 1500, w: 800, h: 500 },
+            { x: 3700, y: 1200, w: 1000, h: 800 },
+            { x: 4500, y: 0, w: 1500, h: 300 },
+            { x: 7500, y: 1000, w: 1000, h: 1000 }
+          ];
+          hazards = [
+            { x: 0, y: 2000, w: 8500, h: 2000 },
+            { x: 0, y: -2000, w: 8500, h: 2000 },
+            { x: 3000, y: 0, w: 1500, h: 100 },
+            { x: 6000, y: 0, w: 1500, h: 100 }
+          ];
+          gravityZones = [
+            { x: 5800, y: 1000, w: 1200, h: 1000, strength: -defaultGravZoneStr * 4 }
+          ];
+          goal = { x: 8300, y: 900, w: 100, h: 100 };
+          player.x = 100; player.y = 700;
+        }
+      },
+      {
+        name: "REACH",
+        build: () => {
+          walls = [
+            { x: -1000, y: -300, w: 1000, h: 2800 },
+            { x: 0, y: -300, w: 1400, h: 200 },
+            { x: 0, y: 800, w: 1400, h: 1200 },
+            { x: 1400, y: -300, w: 2400, h: 800 },
+
+            { x: 2500, y: 1200, w: 800, h: 800 },
+            { x: 4300, y: -1000, w: 800, h: 3000 },
+            { x: 6500, y: 1200, w: 800, h: 800 },
+            { x: 7500, y: -300, w: 1300, h: 1800 },
+            { x: 9000, y: -500, w: 500, h: 3000 },
+
+            { x: 3600, y: -1700, w: 200, h: 1400 },
+            { x: 3800, y: -1700, w: 2400, h: 200 },
+            { x: 6200, y: -1700, w: 200, h: 1600 },
+            { x: 5600, y: -1400, w: 500, h: 1900 },
+            { x: 6100, y: 400, w: 1400, h: 100 },
+            { x: 6400, y: -500, w: 800, h: 400 },
+            { x: 6400, y: -700, w: 3100, h: 200 },
+            { x: 6100, y: 300, w: 500, h: 100 }
+          ];
+          hazards = [
+            { x: 0, y: 2000, w: 9000, h: 500 },
+            { x: 6100, y: 500, w: 500, h: 100 },
+            { x: 6600, y: 300, w: 900, h: 100 },
+            { x: 3300, y: 500, w: 500, h: 100 }
+          ];
+          gravityZones = [
+            { x: 8800, y: -500, w: 200, h: 1000, strength: defaultGravZoneStr },
+            { x: 8800, y: 500, w: 200, h: 1000, strength: -defaultGravZoneStr },
+            { x: 5100, y: 1200, w: 1400, h: 800, strength: -defaultGravZoneStr * 4 }
+          ];
+          goal = { x: 8100, y: 1600, w: 100, h: 100 };
+          player.x = 200; player.y = 700;
+        }
+      },
+      {
+        name: "GANTRY",
+        build: () => {
+          walls = [
+            { x: -500, y: -1000, w: 500, h: 4000 },
+            { x: 200, y: 500, w: 1000, h: 500 },
+            { x: 100, y: 1700, w: 1000, h: 500 },
+            { x: 1200, y: 0, w: 200, h: 2200 },
+            { x: 2400, y: -300, w: 200, h: 1400 },
+            { x: 3600, y: 0, w: 200, h: 1000 },
+            { x: 3600, y: 500, w: 200, h: 1000 },
+            { x: 4500, y: -500, w: 500, h: 2000 },
+            { x: 5500, y: -1000, w: 500, h: 4000 },
+            { x: 5000, y: 2100, w: 500, h: 100 },
+            { x: 2600, y: 500, w: 1000, h: 500 },
+            { x: 3000, y: -800, w: 200, h: 600 },
+            { x: 2000, y: 1600, w: 1000, h: 600 }
+          ];
+          hazards = [
+            { x: 0, y: 2200, w: 5500, h: 800 },
+            { x: 1400, y: 300, w: 1000, h: 200 },
+            { x: 3800, y: 300, w: 700, h: 200 },
+            { x: 2400, y: 1100, w: 200, h: 100 },
+            { x: 0, y: -1000, w: 5500, h: 200 }
+          ];
+          gravityZones = [
+            { x: 3800, y: 500, w: 700, h: 1700, strength: -defaultGravZoneStr },
+            { x: 3000, y: 1600, w: 500, h: 600, strength: -defaultGravZoneStr }
+          ];
+          goal = { x: 1400, y: 500, w: 100, h: 100 };
+          player.x = 600; player.y = 1600;
+        }
+      },
+      {
+        name: "CHAMBER",
+        build: () => {
+          walls = [
+            { x: -1000, y: -2000, w: 1000, h: 6000 },
+            { x: 0, y: -2000, w: 8000, h: 500 },
+            { x: 0, y: 0, w: 1500, h: 200 },
+            { x: 1000, y: -1000, w: 1500, h: 200 },
+            { x: 7500, y: -2000, w: 1000, h: 6000 },
+            { x: 0, y: 3000, w: 8000, h: 1000 },
+            { x: 0, y: 1500, w: 1500, h: 500 },
+            { x: 2500, y: -1000, w: 500, h: 1800 },
+
+            { x: 4500, y: 800, w: 1000, h: 2000 },
+            { x: 1800, y: 600, w: 1000, h: 200 },
+            { x: 3000, y: 1200, w: 1500, h: 200 },
+            { x: 6000, y: 800, w: 1500, h: 200 }
+          ];
+
+          hazards = [
+            { x: 2500, y: 800, w: 200, h: 2200 },
+            { x: 4500, y: -1500, w: 200, h: 2300 },
+            { x: 6300, y: -1500, w: 200, h: 1800 },
+            { x: 1000, y: -800, w: 1500, h: 100 },
+            { x: 0, y: 200, w: 1500, h: 100 },
+            { x: 0, y: -1500, w: 4500, h: 100 },
+            { x: 2700, y: 2900, w: 500, h: 100 }
+          ];
+
+          gravityZones = [
+            { x: 1500, y: 800, w: 1000, h: 2000, strength: -defaultGravZoneStr },
+            { x: 4000, y: 1400, w: 500, h: 1400, strength: defaultGravZoneStr },
+            { x: 5500, y: 800, w: 500, h: 2000, strength: -defaultGravZoneStr },
+            { x: 6500, y: -1400, w: 1000, h: 2000, strength: -defaultGravZoneStr },
+            { x: 6500, y: -1500, w: 900, h: 100, strength: -defaultGravZoneStr },
+            { x: 0, y: -1000, w: 1000, h: 1000, strength: -defaultGravZoneStr },
+            { x: 3000, y: 700, w: 1500, h: 500, strength: -defaultGravZoneStr }
+          ];
+          goal = { x: 7400, y: -1500, w: 100, h: 100 };
+          player.x = 100; player.y = 2900;
+        }
+      },
+      {
+        name: "VALVE",
+        build: () => {
+          walls = [
+            { x: -200, y: 0, w: 200, h: 2000 },
+            { x: 0, y: 0, w: 3000, h: 200 },
+            { x: 0, y: 800, w: 2000, h: 200 },
+            { x: 2800, y: 200, w: 200, h: 1800 },
+            { x: 1000, y: 1400, w: 200, h: 400 },
+            { x: 0, y: 1000, w: 1000, h: 200 },
+            { x: 2200, y: 200, w: 100, h: 300 },
+            { x: 0, y: 1800, w: 2800, h: 200 }
+          ];
+          hazards = [
+            { x: 2200, y: 1000, w: 600, h: 100 },
+            { x: 1200, y: 1700, w: 500, h: 100 }
+          ];
+          goal = { x: 100, y: 1300, w: 100, h: 100 };
+          player.x = 100; player.y = 700;
+        }
+      },
+      {
+        name: "COMPRESSION",
+        build: () => {
+          walls = [
+            { x: -400, y: 1200, w: 1200, h: 100 },
+            { x: -500, y: -400, w: 100, h: 1700 },
+            { x: -400, y: -400, w: 1200, h: 100 },
+
+            { x: 0, y: 500, w: 800, h: 100 },
+            { x: 800, y: 0, w: 4000, h: 200 },
+            { x: 800, y: 1600, w: 4000, h: 200 },
+            { x: 1500, y: 1100, w: 2000, h: 300 },
+            { x: 4800, y: -1100, w: 200, h: 2900 },
+            { x: 800, y: -1100, w: 200, h: 800 },
+            { x: 1000, y: -1100, w: 3800, h: 200 },
+            { x: 1500, y: -500, w: 1000, h: 200 },
+            { x: 4000, y: 600, w: 700, h: 600 }
+          ];
+          hazards = [
+            { x: 1500, y: 200, w: 2000, h: 500 },
+            { x: 700, y: 0, w: 100, h: 500 },
+            { x: 3500, y: -600, w: 300, h: 600 },
+            { x: 700, y: 1300, w: 100, h: 500 }
+          ];
+          goal = { x: 4700, y: 200, w: 100, h: 100 };
+          player.x = 4600; player.y = -100;
+        }
+      },
+      {
+        name: "VENT",
+        build: () => {
+          walls = [
+            { x: -200, y: 0, w: 200, h: 800 },
+            { x: 0, y: 700, w: 500, h: 100 },
+            { x: 0, y: 0, w: 5000, h: 100 },
+            { x: -200, y: 800, w: 5200, h: 100 },
+            { x: 1000, y: 100, w: 100, h: 200 },
+            { x: 2000, y: 300, w: 100, h: 500 },
+            { x: 3000, y: 700, w: 1000, h: 100 },
+            { x: 3800, y: 100, w: 200, h: 500 },
+            { x: 5000, y: 0, w: 200, h: 900 }
+          ];
+          hazards = [
+            { x: 500, y: 700, w: 4500, h: 100 },
+            { x: 1000, y: 300, w: 100, h: 100 }
+          ];
+          goal = { x: 4900, y: 600, w: 100, h: 100 };
+          player.x = 100; player.y = 600;
+        }
+      },
+      {
+        name: "AIRLOCK",
+        build: () => {
+          walls = [
+            { x: 0, y: 0, w: 10000, h: 2000 },
+            { x: 0, y: 6500, w: 5000, h: 4500 },
+            { x: 5000, y: 4500, w: 5000, h: 6500 },
+            { x: -1000, y: 0, w: 1000, h: 11000 },
+            { x: 10000, y: 0, w: 1000, h: 11000 },
+            { x: 0, y: 3200, w: 1000, h: 600 },
+            { x: 1000, y: 3500, w: 6000, h: 300 },
+            { x: 1500, y: 2000, w: 1000, h: 500 },
+            { x: 1500, y: 3000, w: 1000, h: 500 },
+
+            { x: 4000, y: 2000, w: 1000, h: 500 },
+            { x: 4000, y: 3000, w: 1000, h: 500 },
+            { x: 7500, y: 2000, w: 2500, h: 700 },
+            { x: 7500, y: 3200, w: 1500, h: 1000 },
+            { x: 1500, y: 3800, w: 2000, h: 1000 },
+            { x: 1500, y: 5500, w: 2000, h: 1000 },
+            { x: 4500, y: 5500, w: 500, h: 200 }
+          ];
+          hazards = [
+            { x: 0, y: 2000, w: 1500, h: 100 },
+            { x: 1000, y: 3400, w: 500, h: 100 },
+            { x: 2500, y: 3400, w: 1500, h: 100 },
+            { x: 2500, y: 2000, w: 1500, h: 100 },
+            { x: 5000, y: 2000, w: 2500, h: 500 },
+            { x: 5000, y: 3400, w: 1000, h: 100 },
+            { x: 7000, y: 3500, w: 500, h: 300 },
+            { x: 5500, y: 3800, w: 2000, h: 100 },
+            { x: 0, y: 6000, w: 1500, h: 500 },
+            { x: 3500, y: 6000, w: 1500, h: 500 }
+          ];
+          gravityZones = [
+            { x: 1000, y: 2100, w: 500, h: 1300, strength: defaultGravZoneStr },
+            { x: 2500, y: 2100, w: 1500, h: 1300, strength: defaultGravZoneStr },
+            { x: 5000, y: 2500, w: 2500, h: 900, strength: defaultGravZoneStr },
+            { x: 6000, y: 3400, w: 1500, h: 100, strength: defaultGravZoneStr },
+            { x: 9000, y: 3200, w: 1000, h: 1000, strength: -defaultGravZoneStr },
+            { x: 5500, y: 3900, w: 1000, h: 600, strength: -defaultGravZoneStr },
+            { x: 1500, y: 5100, w: 2000, h: 400, strength: -defaultGravZoneStr },
+            { x: 7500, y: 4200, w: 2500, h: 300, strength: defaultGravZoneStr }
+          ];
+          goal = { x: 0, y: 3800, w: 100, h: 100 };
+          player.x = 300; player.y = 3000;
+        }
+      },
+      {
+        name: "ASCENT",
+        build: () => {
+          walls = [
+            { x: -900, y: -200, w: 1000, h: 6000 },
+            { x: 1700, y: -200, w: 1000, h: 6000 },
+            { x: 100, y: 4800, w: 1600, h: 1000 },
+            { x: 100, y: 4000, w: 600, h: 100 },
+            { x: 1200, y: 3200, w: 600, h: 100 },
+            { x: 100, y: 2400, w: 600, h: 100 },
+            { x: 700, y: 1600, w: 1000, h: 100 },
+            { x: 100, y: 800, w: 1000, h: 100 },
+            { x: 800, y: 100, w: 900, h: 300 }
+          ];
+          hazards = [
+            { x: 700, y: 4000, w: 500, h: 100 },
+            { x: 700, y: 3200, w: 500, h: 100 },
+            { x: 700, y: 2400, w: 500, h: 100 },
+            { x: -900, y: -1200, w: 3600, h: 1000 }
+          ];
+          gravityZones = [
+            { x: 100, y: 1300, w: 600, h: 1100, strength: -defaultGravZoneStr }
+          ];
+          goal = { x: 1600, y: 0, w: 100, h: 100 };
+          player.x = 200; player.y = 4600;
+        }
+      },
+      {
+        name: "CRUCIBLE", //PYLON?
+        build: () => {
+          walls = [
+            { x: -200, y: 0, w: 200, h: 1600 },
+            { x: 0, y: 0, w: 1000, h: 200 },
+            { x: 200, y: 1100, w: 1800, h: 200 },
+
+            { x: 1000, y: -1800, w: 200, h: 2900 },
+            { x: 2500, y: -800, w: 200, h: 2400 },
+
+            { x: 1700, y: -1000, w: 1000, h: 200 },
+            { x: 1200, y: -500, w: 500, h: 200 },
+            { x: 3000, y: -400, w: 800, h: 200 },
+
+            { x: -200, y: 1600, w: 5400, h: 200 },
+            { x: 4200, y: -1400, w: 200, h: 2400 },
+            { x: 5200, y: -1400, w: 500, h: 3200 },
+
+            { x: 1500, y: 400, w: 2200, h: 200 },
+            { x: 2000, y: 1000, w: 200, h: 300 },
+            { x: 3000, y: 1000, w: 1400, h: 200 }
+          ];
+          hazards = [
+            { x: 2700, y: 600, w: 1000, h: 100 },
+            { x: 3000, y: -200, w: 1200, h: 100 },
+            { x: 1000, y: 1500, w: 500, h: 100 },
+            { x: 1200, y: 1000, w: 800, h: 100 },
+            { x: 3000, y: 1200, w: 1400, h: 100 },
+            { x: 3800, y: -400, w: 400, h: 200 },
+            { x: 1200, y: -1800, w: 4500, h: 400 }
+          ];
+          gravityZones = [
+            { x: 1200, y: -300, w: 300, h: 1300, strength: -defaultGravZoneStr },
+            { x: 1700, y: -800, w: 800, h: 1200, strength: -defaultGravZoneStr },
+            { x: 4400, y: -1300, w: 100, h: 1400, strength: defaultGravZoneStr / 2 },
+            { x: 4400, y: 100, w: 100, h: 1400, strength: -defaultGravZoneStr / 2 }
+          ];
+          goal = { x: 4400, y: -1400, w: 100, h: 100 };
+          player.x = 900; player.y = 1000;
+        }
+      },
+      {
+        name: "REMNANT",
+        build: () => {
+          walls = [
+            { x: -800, y: 0, w: 500, h: 2300 },
+            { x: -300, y: -500, w: 500, h: 3000 },
+
+            { x: -800, y: 2900, w: 500, h: 1100 },
+            { x: -300, y: 3100, w: 500, h: 900 },
+
+            { x: -1000, y: 2900, w: 200, h: 200 },
+            { x: 9200, y: 2900, w: 200, h: 200 },
+
+            { x: 8200, y: -2000, w: 1000, h: 6000 },
+
+            { x: 1200, y: -300, w: 500, h: 2000 },
+            { x: 1700, y: -100, w: 500, h: 2000 },
+
+            { x: 3200, y: -1500, w: 500, h: 4000 },
+            { x: 3700, y: -1300, w: 500, h: 3600 },
+
+            { x: 4200, y: -1100, w: 1000, h: 500 },
+            { x: 4400, y: 500, w: 1300, h: 200 },
+            { x: 5700, y: -2100, w: 500, h: 1500 },
+            { x: 5700, y: -100, w: 500, h: 1000 },
+
+            { x: 1200, y: 2600, w: 500, h: 1400 },
+            { x: 1700, y: 2400, w: 500, h: 1600 },
+
+            { x: 5200, y: 1200, w: 500, h: 2800 },
+            { x: 5700, y: 1700, w: 500, h: 2300 },
+
+            { x: 6200, y: 700, w: 1500, h: 200 },
+            { x: 6200, y: -800, w: 1500, h: 200 },
+            { x: 6700, y: -100, w: 1500, h: 200 }
+          ];
+          hazards = [
+            { x: -1800, y: 4000, w: 12000, h: 10000 },
+            { x: 3200, y: -2500, w: 500, h: 1000 },
+            { x: 1700, y: -300, w: 500, h: 200 },
+            { x: -1000, y: 3100, w: 200, h: 900 },
+            { x: 9200, y: 3100, w: 200, h: 900 },
+            { x: 5700, y: -2300, w: 500, h: 200 }
+          ];
+          gravityZones = [
+            { x: 5200, y: -2300, w: 500, h: 1700, strength: defaultGravZoneStr },
+            { x: 1700, y: 1900, w: 500, h: 500, strength: defaultGravZoneStr },
+            { x: -300, y: 2500, w: 500, h: 600, strength: defaultGravZoneStr },
+            { x: 5700, y: 900, w: 2500, h: 800, strength: defaultGravZoneStr }
+          ];
+          goal = { x: 6200, y: -900, w: 100, h: 100 };
+          player.x = -700; player.y = -100;
+        }
+      },
+      {
+        name: "STRONGHOLD",
+        build: () => {
+          walls = [
+            { x: -500, y: 1000, w: 1000, h: 500 },
+            { x: -500, y: 1500, w: 2500, h: 500 },
+            { x: 2500, y: 500, w: 500, h: 2500 },
+            { x: 3500, y: -500, w: 1500, h: 500 },
+            { x: 3500, y: 1500, w: 1500, h: 500 },
+            { x: 5500, y: 1000, w: 500, h: 1000 },
+            { x: 7000, y: 500, w: 1500, h: 500 },
+            { x: 5500, y: 2900, w: 2000, h: 100 },
+            { x: 3500, y: -2000, w: 500, h: 1500 },
+            { x: 8500, y: 0, w: 1500, h: 3000 }
+          ];
+          hazards = [
+            { x: -1000, y: 3000, w: 8500, h: 500 },
+            { x: 8500, y: 3000, w: 2000, h: 500 },
+            { x: 10000, y: 2000, w: 500, h: 1000 },
+            { x: 2000, y: 1500, w: 500, h: 1500 },
+            { x: -1000, y: 2000, w: 3000, h: 1000 },
+            { x: 3500, y: 1400, w: 1500, h: 100 },
+            { x: 6500, y: -500, w: 500, h: 3000 }
+          ];
+          gravityZones = [
+            { x: 500, y: -1000, w: 500, h: 2500, strength: -defaultGravZoneStr },
+            { x: 5000, y: -500, w: 500, h: 3500, strength: -defaultGravZoneStr }
+          ];
+          goal = { x: 9200, y: -100, w: 100, h: 100 };
+          player.x = -100;
+          player.y = 800;
+        }
+      },
+      {
+        name: "VAULT",
+        build: () => {
+          walls = [
+            { x: -1000, y: 3000, w: 11500, h: 500 },
+            { x: -1000, y: -2000, w: 500, h: 5000 },
+            { x: 10000, y: -2000, w: 500, h: 5000 },
+
+            { x: -500, y: 1500, w: 2500, h: 500 },
+            { x: 3000, y: 500, w: 4000, h: 500 },
+            { x: 3500, y: -500, w: 3000, h: 500 },
+
+            { x: 7000, y: -500, w: 200, h: 1500 },
+            { x: 8000, y: -500, w: 500, h: 1500 },
+            { x: 500, y: -100, w: 1500, h: 100 },
+            { x: 8500, y: -500, w: 500, h: 3000 }
+          ];
+          hazards = [
+            { x: 0, y: 0, w: 3000, h: 500 },
+            { x: 2000, y: 500, w: 1000, h: 2000 },
+            { x: 7200, y: -500, w: 800, h: 1500 },
+            { x: 4000, y: -1500, w: 2000, h: 1000 },
+            { x: 3000, y: 1000, w: 5500, h: 500 },
+            { x: -500, y: -2000, w: 10500, h: 500 },
+            { x: 5700, y: 2900, w: 600, h: 100 }
+          ];
+          gravityZones = [
+            { x: 1000, y: 500, w: 500, h: 1000, strength: -defaultGravZoneStr },
+            { x: 0, y: 500, w: 500, h: 1000, strength: -defaultGravZoneStr },
+            { x: 6500, y: -1500, w: 500, h: 2000, strength: -defaultGravZoneStr },
+            { x: 7500, y: 2500, w: 1000, h: 500, strength: -defaultGravZoneStr },
+
+            { x: 3000, y: 1500, w: 5500, h: 1000, strength: -defaultGravZoneStr },
+            { x: 3500, y: 2500, w: 1000, h: 500, strength: -defaultGravZoneStr },
+            { x: 9000, y: -1500, w: 1000, h: 4500, strength: defaultGravZoneStr },
+            { x: -500, y: 2900, w: 2500, h: 100, strength: -defaultGravZoneStr * 4 }
+          ];
+          goal = { x: -500, y: 2000, w: 100, h: 100 };
+          player.x = 1900;
+          player.y = 1400;
+        }
+      },
+      {
+        name: "SUPERPOSITION",
+        build: () => {
+          walls = [
+            { x: -1000, y: -500, w: 1000, h: 3500 },
+            { x: 8000, y: 700, w: 1000, h: 800 },
+            { x: 0, y: 1000, w: 2000, h: 500 },
+            { x: -800, y: -1000, w: 5600, h: 200 },
+            { x: 2000, y: 800, w: 3000, h: 700 },
+            { x: 3400, y: -300, w: 200, h: 1100 },
+            { x: 6000, y: -1800, w: 2600, h: 2000 },
+            { x: 11000, y: -3000, w: 200, h: 3500 },
+            { x: 11200, y: -3000, w: 1800, h: 200 },
+            { x: 13000, y: -1000, w: 200, h: 4000 },
+            { x: 13000, y: -3000, w: 200, h: 1700 },
+            { x: 10000, y: 500, w: 2200, h: 200 },
+            { x: 12500, y: 1500, w: 500, h: 1500 },
+            { x: 11600, y: -500, w: 1400, h: 200 },
+            { x: 18200, y: -1000, w: 800, h: 3800 },
+            { x: 4800, y: -2000, w: 200, h: 1200 },
+            { x: -1000, y: -1000, w: 200, h: 500 },
+
+            { x: 4100, y: -800, w: 200, h: 1100 },
+            { x: 2700, y: -800, w: 200, h: 1100 },
+
+            { x: 14000, y: -1800, w: 1500, h: 300 },
+            { x: 15000, y: -1100, w: 2000, h: 100 },
+
+            { x: 11600, y: -2400, w: 1000, h: 1200 },
+            { x: 18200, y: 2800, w: 2500, h: 200 },
+            { x: 20500, y: 2000, w: 200, h: 800 },
+            { x: 20500, y: -2000, w: 200, h: 1000 },
+            { x: 10000, y: 1300, w: 1000, h: 200 },
+            { x: 19700, y: -1000, w: 1000, h: 3000 }
+          ];
+          hazards = [
+            { x: 0, y: 1500, w: 11200, h: 1500 },
+            { x: 0, y: 900, w: 900, h: 100 },
+            { x: 3400, y: -500, w: 200, h: 200 },
+            { x: 2700, y: 300, w: 200, h: 200 },
+            { x: 4100, y: 300, w: 200, h: 200 },
+            { x: 11200, y: 2800, w: 1300, h: 200 },
+            { x: 6500, y: 0, w: 200, h: 100 },
+            { x: 13200, y: -2000, w: 7300, h: 200 },
+            { x: 5000, y: -2000, w: 6000, h: 200 },
+            { x: 13200, y: -1000, w: 5000, h: 4000 },
+            { x: 11600, y: -1200, w: 1000, h: 500 }
+          ];
+          gravityZones = [
+            { x: 19000, y: -1000, w: 700, h: 2000, strength: defaultGravZoneStr },
+            { x: 19000, y: 1000, w: 700, h: 1800, strength: -defaultGravZoneStr },
+            { x: 6000, y: 500, w: 1000, h: 1000, strength: -defaultGravZoneStr * 2 }
+          ];
+          goal = { x: 20400, y: 2700, w: 100, h: 100 };
+          player.x = -700; player.y = -600;
+          //player.x = 4900; player.y = 700;
+          //player.x = 12900; player.y = 1400;
+          player.x = 15100; player.y = -1200;
+        }
+      }
+    ];
+
+    window.onkeydown = e => {
+      if (e.code === "KeyP" || e.code === "KeyE") {
+        paused = !paused;
+
+        if (paused) {
+          document.exitPointerLock();
+        } else {
+          if (keys["Space"] && !grapple.active && !controlsLocked) fireHarpoon();
+        }
+        return;
+      }
+
+      if (e.code === "KeyG" || e.code === "KeyQ") {
+        gridShown = !gridShown;
+      }
+
+      if (e.code === "KeyO") {
+        if (!document.fullscreenElement) {
+          canvas.requestFullscreen().catch(err => console.log(err));
+        } else {
+          document.exitFullscreen();
+        }
+        return;
+      }
+
+      keys[e.code] = !0;
+      if (e.code === "Space" && !controlsLocked && !paused && !grapple.active) {
+        fireHarpoon();
+      }
+    };
+
+    window.onkeyup = e => {
+      keys[e.code] = !1;
+      if (e.code === "Space" && grapple.active && !paused) {
+        grapple.attached = !1;
+        grapple.returning = !0;
+      }
+    };
+
+    window.addEventListener("mousemove", e => {
+      if (document.pointerLockElement === canvas) {
+        mouse.x += e.movementX;
+        mouse.y += e.movementY;
+      } else {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+      }
+      mouse.x = Math.max(0, Math.min(w, mouse.x));
+      mouse.y = Math.max(0, Math.min(h, mouse.y));
+    });
+
+
+    canvas.addEventListener("click", async () => {
+      if (!document.pointerLockElement) {
+        try {
+          await canvas.requestFullscreen();
+          await canvas.requestPointerLock();
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    });
+
+    function fireHarpoon() {
+      if (grapple.active) return;
+      grapple.active = !0; grapple.attached = !1; grapple.x = player.x; grapple.y = player.y;
+      const a = Math.atan2(mouse.y - h / 2, mouse.x - w / 2);
+      grapple.vx = Math.cos(a) * grapple.strength; grapple.vy = Math.sin(a) * grapple.strength;
+    }
+
+    function getRayWallDist(x, y, vx, vy) {
+      let minT = 1;
+      let hit = null;
+      walls.forEach(w => {
+        let tX0 = (w.x - x) / vx, tX1 = (w.x + w.w - x) / vx;
+        let tY0 = (w.y - y) / vy, tY1 = (w.y + w.h - y) / vy;
+        let tMin = Math.max(Math.min(tX0, tX1), Math.min(tY0, tY1));
+        let tMax = Math.min(Math.max(tX0, tX1), Math.max(tY0, tY1));
+        if (tMax >= tMin && tMax > 0 && tMin < minT) {
+          minT = tMin;
+          hit = w;
+        }
+      });
+      return { t: minT, wall: hit };
+    }
+
+    function loadLevel(isNewSector = true) {
+      controlsLocked = !0;
+      levelTimer = 60;
+      document.title = "conduit: " + String(currentLevelName).toLowerCase();
+
+      gravityZones = [];
+
+      if (lastLevelIndex >= levels.length || lastLevelIndex < 0) isNewSector = true;
+
+      if (isNewSector || lastLevelIndex === -1) {
+        let nextIdx;
+        do {
+          nextIdx = Math.floor(Math.random() * levels.length);
+        } while (nextIdx === lastLevelIndex && levels.length > 1);
+
+        lastLevelIndex = nextIdx;
+
+        localStorage.setItem('storedLevel', lastLevelIndex);
+      }
+
+      const l = levels[lastLevelIndex];
+      l.build();
+      currentLevelName = l.name;
+
+      grapple.active = !1;
+      player.vx = 0;
+      player.vy = 0;
+
+      camFollX = player.x;
+      camFollY = player.y;
+      camX = player.x - w / 2;
+      camY = player.y - h / 2;
+
+      setTimeout(() => { controlsLocked = !1; }, 1000);
+    }
+
+    function update() {
+      if (levelTimer > 0) levelTimer--;
+
+      document.title = "conduit - " + String(currentLevelName).toLowerCase();
+
+      if (!controlsLocked && !paused) {
+        if (grapple.active) {
+          if (grapple.attached) {
+            const dx = grapple.x - player.x, dy = grapple.y - player.y, dist = Math.hypot(dx, dy);
+            const nx = dx / dist, ny = dy / dist, vMag = Math.hypot(player.vx, player.vy);
+            grapple.stiffness = vMag > 0.1 ? (Math.abs((player.vx / vMag) * nx + (player.vy / vMag) * ny) * 0.8) : 1;
+            player.vx += dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
+            player.vy += dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
+
+            if (!keys.Space) {
+              grapple.wasInGZone = gravityZones.some(z => Math.hypot(grapple.x - Math.max(z.x, Math.min(grapple.x, z.x + z.w)), grapple.y - Math.max(z.y, Math.min(grapple.y, z.y + z.h))) <= 20);
+              grapple.attached = !1; grapple.returning = !0;
+            }
+          } else if (grapple.returning) {
+            const dx = player.x - grapple.x, dy = player.y - grapple.y, dist = Math.hypot(dx, dy);
+
+            const currentlyInGZone = gravityZones.some(z => grapple.x > z.x && grapple.x < z.x + z.w && grapple.y > z.y && grapple.y < z.y + z.h);
+            const speed = currentlyInGZone ? (grapple.strength / 4) : (grapple.strength / 2);
+
+            const rx = (dx / dist) * speed, ry = (dy / dist) * speed;
+            grapple.x += rx; grapple.y += ry;
+
+            if (dist < 40) {
+              const playerInGZone = gravityZones.some(z => player.x > z.x && player.x < z.x + z.w && player.y > z.y && player.y < z.y + z.h);
+
+              if (player.onGround) {
+                const nx = dx / dist, ny = dy / dist;
+                player.vx += nx * (grapple.strength * 0.1); player.vy += ny * (grapple.strength * 0.1);
+              }
+
+              grapple.active = !1;
+              grapple.returning = !1;
+              grapple.wasInGZone = !1;
+            }
+          } else {
+            let minT = 1, hitWall = null;
+            walls.forEach(w => {
+              let tX0 = (w.x - grapple.x) / grapple.vx, tX1 = (w.x + w.w - grapple.x) / grapple.vx;
+              let tY0 = (w.y - grapple.y) / grapple.vy, tY1 = (w.y + w.h - grapple.y) / grapple.vy;
+              let tMin = Math.max(Math.min(tX0, tX1), Math.min(tY0, tY1));
+              let tMax = Math.min(Math.max(tX0, tX1), Math.max(tY0, tY1));
+              if (tMax >= tMin && tMax > 0 && tMin < minT) { minT = tMin; hitWall = w; }
+            });
+
+            if (hitWall) {
+              grapple.x += grapple.vx * minT; grapple.y += grapple.vy * minT;
+              grapple.wasInGZone = gravityZones.some(z => Math.hypot(grapple.x - Math.max(z.x, Math.min(grapple.x, z.x + z.w)), grapple.y - Math.max(z.y, Math.min(grapple.y, z.y + z.h))) <= 20);
+              grapple.attached = !0;
+            } else {
+              grapple.x += grapple.vx; grapple.y += grapple.vy;
+            }
+
+            if (Math.hypot(grapple.x - player.x, grapple.y - player.y) > 3000) {
+              grapple.returning = !0; grapple.wasInGZone = !1;
+            }
+          }
+        }
+
+        if ((keys.KeyS || keys.ArrowDown) && player.canDash) {
+          const a = Math.atan2(mouse.y - h / 2, mouse.x - w / 2);
+          player.vx += Math.cos(a) * 25; player.vy += Math.sin(a) * 25;
+          player.canDash = !1; player.dashCD = 40;
+        }
+        player.dashCD = Math.max(0, player.dashCD - 1);
+        if (player.onGround && player.dashCD === 0) player.canDash = !0;
+        (keys.KeyA || keys.ArrowLeft) && (player.vx -= player.onGround ? 1.0 : AIR_CONTROL);
+        (keys.KeyD || keys.ArrowRight) && (player.vx += player.onGround ? 1.0 : AIR_CONTROL);
+        player.vx *= player.onGround ? GROUND_FRICTION : AIR_FRICTION;
+        if (player.coyote > 0 && (keys.KeyW || keys.ArrowUp)) {
+          player.vy = -14;
+          player.coyote = 0;
+          player.isJumping = true;
+        }
+
+        if (!(keys.KeyW || keys.ArrowUp)) {
+          player.isJumping = false;
+        }
+
+        let currentGravity = GRAVITY;
+        gravityZones.forEach(z => {
+          if (player.x > z.x && player.x < z.x + z.w && player.y > z.y && player.y < z.y + z.h) {
+            currentGravity = z.strength;
+          }
+        });
+
+        if (player.isJumping && player.vy < 0) {
+          player.vy += currentGravity * 0.45;
+        } else {
+          player.vy += currentGravity;
+        }
+
+        let sideH = player.vx > 0 ? player.size : -player.size;
+        let rH1 = getRayWallDist(player.x + sideH, player.y - player.size + 1, player.vx, 0);
+        let rH2 = getRayWallDist(player.x + sideH, player.y + player.size - 1, player.vx, 0);
+        let minTX = Math.min(rH1.t, rH2.t);
+        if (minTX < 1) { player.x += player.vx * minTX; player.vx = 0; }
+        else { player.x += player.vx; }
+
+        player.onGround = !1;
+        let sideV = player.vy > 0 ? player.size : -player.size;
+        let rV1 = getRayWallDist(player.x - player.size + 1, player.y + sideV, 0, player.vy);
+        let rV2 = getRayWallDist(player.x + player.size - 1, player.y + sideV, 0, player.vy);
+        let minTY = Math.min(rV1.t, rV2.t);
+        if (minTY < 1) {
+          player.y += player.vy * minTY;
+          if (player.vy > 0) { player.onGround = !0; player.coyote = 10; }
+          player.vy = 0;
+        } else { player.y += player.vy; }
+
+        if (hazards.some(h => player.x + player.size > h.x && player.x - player.size < h.x + h.w && player.y + player.size > h.y && player.y - player.size < h.y + h.h)) loadLevel(false);
+        if (player.x > goal.x && player.x < goal.x + goal.w && player.y > goal.y && player.y < goal.y + goal.h) loadLevel(true);
+        if (player.y > 10000) loadLevel(false);
+
+        if (!player.onGround) GROUND_FRICTION = lerp(GROUND_FRICTION, 0.95, 0.1)
+        else if (player.onGround) GROUND_FRICTION = lerp(GROUND_FRICTION, 0.87, 0.05)
+      }
+
+      tilt = Math.max(-0.6, Math.min(0.6, player.vx * 0.05));
+
+      legs.forEach(l => {
+        const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
+        const localX = l.side * 4, localY = 4;
+        const hX = player.x + (localX * cosT - localY * sinT);
+        const hY = player.y + (localX * sinT + localY * cosT);
+
+        const other = legs.find(o => o !== l);
+        const airRepel = l.side * 4;
+
+        if (player.onGround) {
+          const rayStartY = hY + player.size;
+          const ground = getRayWallDist(hX + (l.side * 6), rayStartY, 0, 20);
+          const groundY = ground.wall ? rayStartY + (ground.t * 20) : rayStartY;
+
+          if (!l.stepping && !other.stepping && Math.hypot(l.x - (hX + (l.side * 6)), l.y - groundY) > 8) {
+            l.targetX = hX + (l.side * 6) + (player.vx * 0.4);
+            l.targetY = groundY;
+            l.stepping = !0;
+          }
+          if (l.stepping && Math.hypot(l.x - l.targetX, l.y - l.targetY) < 2) l.stepping = !1;
+        } else {
+          l.targetX = hX + airRepel + Math.max(-12, Math.min(12, -player.vx * 0.1));
+          l.targetY = hY + Math.max(-12, Math.min(12, -player.vy * 0.1));
+          l.stepping = !1;
+        }
+
+        l.x += (l.targetX - l.x) * 0.4;
+        l.y += (l.targetY - l.y) * 0.4;
+      });
+
+      const followSpeed = 0.15;
+      camFollX += (player.x - camFollX) * followSpeed;
+      camFollY += (player.y - camFollY) * followSpeed;
+
+      const speed = Math.hypot(player.vx, player.vy);
+      const mX = (mouse.x - w / 2) * 0.4;
+      const mY = (mouse.y - h / 2) * 0.4;
+      const vX = player.vx * 6;
+      const vY = player.vy * 6;
+
+      let targetX = camFollX + mX + vX - w / 2;
+      let targetY = camFollY + mY + vY - h / 2;
+
+      camX += (targetX - camX) * 0.12;
+      camY += (targetY - camY) * 0.12;
+
+      camZoom += ((1 / (1 + (speed * 0.02) + (Math.hypot(mX, mY) * zoomStrength))) - camZoom) * 0.05;
+
+      player.coyote--;
+      render();
+      requestAnimationFrame(update);
+    }
+
+    function render() {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#0a0a0a";
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.translate(w / 2, h / 2);
+      ctx.scale(camZoom, camZoom);
+      ctx.translate(-w / 2 - camX, -h / 2 - camY);
+
+      ctx.fillStyle = "#511"; hazards.forEach(h => ctx.fillRect(h.x, h.y, h.w, h.h));
+      ctx.fillStyle = "#222"; walls.forEach(r => ctx.fillRect(r.x, r.y, r.w, r.h));
+      ctx.fillStyle = "#151"; ctx.fillRect(goal.x, goal.y, goal.w, goal.h);
+      ctx.fillStyle = "rgba(0, " + String(126 + rand(-20, 20)) + "," + String(160 + rand(-20, 20)) + ", 0.1)"; gravityZones.forEach(z => { ctx.fillRect(z.x, z.y, z.w, z.h); });
+
+
+      if (grapple.active) {
+        ctx.strokeStyle = grapple.attached ? "#0ff" : (grapple.returning ? "#511" : "#888");
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(player.x, player.y);
+        ctx.lineTo(grapple.x, grapple.y);
+        ctx.stroke();
+
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fillRect(grapple.x - 4, grapple.y - 4, 8, 8);
+      }
+
+      ctx.strokeStyle = "#0ff";
+      ctx.lineWidth = 4;
+      legs.forEach(l => {
+        const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
+        const localX = l.side * 4, localY = 4;
+        const hX = player.x + (localX * cosT - localY * sinT);
+        const hY = player.y + (localX * sinT + localY * cosT);
+
+        ctx.beginPath();
+        ctx.moveTo(hX, hY);
+        ctx.lineTo(l.x, l.y);
+        ctx.stroke();
+
+        ctx.fillStyle = "#0ff";
+        ctx.fillRect(l.x - 4, l.y - 4, 8, 8);
+      });
+
+      ctx.save();
+      ctx.translate(player.x, player.y);
+      ctx.rotate(tilt);
+      ctx.fillStyle = "#0ff";
+      ctx.fillRect(-player.size, -player.size, player.size * 2, player.size * 2);
+      ctx.lineWidth = player.size / 2;
+      ctx.strokeStyle = "#00ffff1a";
+      ctx.strokeRect(-player.size, -player.size, player.size * 2, player.size * 2);
+      ctx.restore();
+
+      if (levelTimer > 0) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(1, levelTimer / 30)})`;
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = `rgba(0, 255, 255, ${Math.min(1, levelTimer / 30)})`;
+        ctx.font = "bold 30px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(currentLevelName, w / 2, h / 2);
+      }
+
+      if (gridShown) {
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+        ctx.lineWidth = 0.4 / camZoom;
+        const startX = Math.floor((camX - w / camZoom) / 100) * 100;
+        const endX = Math.ceil((camX + w * 2 / camZoom) / 100) * 100;
+        const startY = Math.floor((camY - h / camZoom) / 100) * 100;
+        const endY = Math.ceil((camY + h * 2 / camZoom) / 100) * 100;
+        for (let x = startX; x <= endX; x += 100) { ctx.moveTo(x, startY); ctx.lineTo(x, endY); }
+        for (let y = startY; y <= endY; y += 100) { ctx.moveTo(startX, y); ctx.lineTo(endX, y); }
+        ctx.stroke();
+      }
+
+      if (paused) {
+        const worldMX = (mouse.x - w / 2) / camZoom + w / 2 + camX;
+        const worldMY = (mouse.y - h / 2) / camZoom + h / 2 + camY;
+        const snapX = Math.round(worldMX / 100) * 100;
+        const snapY = Math.round(worldMY / 100) * 100;
+
+        ctx.fillStyle = "rgba(0, 255, 255, 0.8)";
+        ctx.beginPath();
+        ctx.arc(snapX, snapY, 4 / camZoom, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = `${16 / camZoom}px monospace`;
+        ctx.textAlign = "left";
+        ctx.fillText(`[${snapX}, ${snapY}]`, snapX + 12 / camZoom, snapY + 5 / camZoom);
+
+        const vMag = Math.hypot(player.vx, player.vy);
+        const vAngle = Math.atan2(player.vy, player.vx);
+
+        if (vMag > 5) {
+          ctx.strokeStyle = "rgba(0, 255, 255, 0.8)";
+          ctx.lineWidth = 1 / camZoom;
+
+          const arrowLen = vMag * 10;
+          const endX = player.x + Math.cos(vAngle) * arrowLen;
+          const endY = player.y + Math.sin(vAngle) * arrowLen;
+
+          ctx.beginPath();
+          ctx.moveTo(player.x, player.y);
+          ctx.lineTo(endX, endY);
+
+          const headSize = 10 / camZoom;
+          ctx.lineTo(endX - headSize * Math.cos(vAngle - Math.PI / 7), endY - headSize * Math.sin(vAngle - Math.PI / 7));
+          ctx.moveTo(endX, endY);
+          ctx.lineTo(endX - headSize * Math.cos(vAngle + Math.PI / 7), endY - headSize * Math.sin(vAngle + Math.PI / 7));
+          ctx.stroke();
+
+          ctx.fillStyle = "#0ff";
+          ctx.font = `${16 / camZoom}px monospace`;
+          ctx.fillText(`${Math.round(vMag * 10)}u/s`, endX + (10 / camZoom), endY);
+        }
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 30px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(currentLevelName, w / 2, 50);
+
+        ctx.font = "16px monospace";
+        ctx.textAlign = "left";
+        ctx.fillText(`MD: ${Math.round(Math.hypot(player.vx, player.vy))} / ${Math.round(Math.atan2(player.vy, player.vx) * 180 / Math.PI)}°`, 20, 30);
+        ctx.fillText(`XY: ${Math.round(player.x)} / ${Math.round(player.y)}`, 20, 50);
+        ctx.fillText(`CURSOR: ${snapX} / ${snapY}`, 20, 70);
+        ctx.fillText(`ON_GROUND: ${player.onGround}`, 20, 90);
+        ctx.fillText(`CAN_DASH: ${player.canDash}`, 20, 110);
+        ctx.fillText(`GRAPPLE:`, 20, 150);
+        ctx.fillText(`ACTIVE: ${grapple.active}`, 20, 170);
+        ctx.fillText(`ATTACHED: ${grapple.attached}`, 20, 190);
+        ctx.fillText(`RETURNING: ${grapple.returning}`, 20, 210);
+
+        zoomStrength = 0.04;
+      } else {
+        zoomStrength = 0.0005;
+      }
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+      canvas.style.cursor = "none";
+
+      ctx.strokeStyle = "#0ff";
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(mouse.x, mouse.y - player.size);
+      ctx.lineTo(mouse.x, mouse.y + player.size);
+      ctx.moveTo(mouse.x - player.size, mouse.y);
+      ctx.lineTo(mouse.x + player.size, mouse.y);
+      ctx.stroke();
+
+      ctx.fillStyle = "#0ff";
+      ctx.fillRect(mouse.x - 1, mouse.y - 1, 2, 2);
+    }
+    loadLevel(false);
+    update();
+  </script>
+</body>
+
+</html>
