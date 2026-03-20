@@ -613,7 +613,7 @@
         gridShown = !gridShown;
       }
 
-      if (e.code === "KeyO") {
+      if (e.code === "KeyO" || e.code === "KeyF") {
         if (!document.fullscreenElement) {
           canvas.requestFullscreen().catch(err => console.log(err));
         } else {
