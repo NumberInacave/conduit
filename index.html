@@ -593,6 +593,9 @@
           ];
           goal = { x: 20400, y: 2700, w: 100, h: 100 };
           player.x = -700; player.y = -600;
+          //player.x = 4900; player.y = 700;
+          //player.x = 12900; player.y = 1400;
+          //player.x = 15100; player.y = -1200;
         }
       }
     ];
@@ -683,23 +686,34 @@
       return { t: minT, wall: hit };
     }
 
+    let levelWeights = new Array(levels.length).fill(1);
     function loadLevel(isNewSector = true) {
-      controlsLocked = !0;
+      controlsLocked = true;
       levelTimer = 60;
       document.title = "conduit: " + String(currentLevelName).toLowerCase();
-
       gravityZones = [];
 
       if (lastLevelIndex >= levels.length || lastLevelIndex < 0) isNewSector = true;
 
       if (isNewSector || lastLevelIndex === -1) {
-        let nextIdx;
-        do {
-          nextIdx = Math.floor(Math.random() * levels.length);
-        } while (nextIdx === lastLevelIndex && levels.length > 1);
+        let totalWeight = levelWeights.reduce((a, b) => a + b, 0);
+        let random = Math.random() * totalWeight;
+        let cumulative = 0;
+        let nextIdx = 0;
+
+        for (let i = 0; i < levelWeights.length; i++) {
+          cumulative += levelWeights[i];
+          if (random < cumulative) {
+            nextIdx = i;
+            break;
+          }
+        }
+
+        levelWeights = levelWeights.map(w => w + 0.2);
+
+        levelWeights[nextIdx] = 0;
 
         lastLevelIndex = nextIdx;
-
         localStorage.setItem('storedLevel', lastLevelIndex);
       }
 
@@ -707,16 +721,17 @@
       l.build();
       currentLevelName = l.name;
 
-      grapple.active = !1;
+      grapple.active = false;
       player.vx = 0;
       player.vy = 0;
-
       camFollX = player.x;
       camFollY = player.y;
       camX = player.x - w / 2;
       camY = player.y - h / 2;
 
-      setTimeout(() => { controlsLocked = !1; }, 1000);
+      setTimeout(() => {
+        controlsLocked = false;
+      }, 1000);
     }
 
     function update() {
