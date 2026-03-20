@@ -1,2 +1,2 @@
 # conduit
-fast-paced 2d momentum/movement-based platformer made with html, JS, and CSS.
+fast-paced 2d momentum and movement-based platformer made with html, CSS, and JS.
