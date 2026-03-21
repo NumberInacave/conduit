@@ -10,11 +10,14 @@
       background: #000;
       overflow: hidden;
       font-family: monospace;
+      height: 100vh;
+      width: 100vw;
     }
 
     canvas {
       display: block;
       cursor: crosshair;
+      touch-action: none;
     }
 
     #m-ui {
@@ -22,126 +25,119 @@
       position: fixed;
       inset: 0;
       z-index: 99;
-      user-select: none;
-      touch-action: none;
+      pointer-events: none;
     }
 
     .m-btn {
+      pointer-events: auto;
       border: none;
       color: #fff;
-      font-family: monospace;
-      background: rgba(100, 100, 100, 0.2);
+      background: rgba(120, 120, 120, 0.3);
+      width: 50px;
+      height: 50px;
     }
 
-    #m-track {
+    #m-right-controls {
       position: absolute;
-      width: 120px;
-      height: 30px;
-      background: rgba(100, 100, 100, 0.1);
-      display: none;
-      transform: translate(-50%, -50%);
+      bottom: 30px;
+      right: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      pointer-events: auto;
     }
 
-    #m-handle {
-      position: absolute;
-      width: 40px;
-      height: 30px;
-      background: rgba(200, 200, 200, 0.4);
-      left: 50%;
-      transform: translateX(-50%);
+    .act-btn {
+      width: 80px;
+      height: 80px;
+      background: rgba(150, 150, 150, 0.2);
+      border: none;
+      color: #fff;
+      font-weight: bold;
     }
   </style>
 </head>
 
 <body>
   <canvas id="game"></canvas>
+
   <div id="m-ui">
-    <div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
-      <button class="m-btn" id="m-fs" style="width: 45px; height: 45px;">FS</button>
-      <button class="m-btn" id="m-ps" style="width: 45px; height: 45px;">P</button>
-      <button class="m-btn" id="m-gr" style="width: 45px; height: 45px;">G</button>
+    <div style="position: absolute; top: 10px; left: 10px; display: flex; gap: 5px; pointer-events: auto;">
+      <button class="m-btn" id="m-ps" style="background: rgba(80, 80, 80, 0.3);">P</button>
+      <button class="m-btn" id="m-gr" style="background: rgba(60, 60, 60, 0.3);">G</button>
     </div>
 
-    <div id="m-left" style="position: absolute; bottom: 0; left: 0; width: 50%; height: 80%;">
-      <div id="m-track">
-        <div id="m-handle"></div>
-      </div>
-    </div>
+    <div id="m-left-zone" style="position: absolute; inset: 0 50% 0 0; pointer-events: auto;"></div>
+    <div id="m-right-zone" style="position: absolute; inset: 0 0 0 50%; pointer-events: auto;"></div>
 
-    <div id="m-right"
-      style="position: absolute; bottom: 40px; right: 40px; display: flex; flex-direction: column; gap: 20px;">
-      <button class="m-btn" id="m-dash" style="width: 90px; height: 90px;">DASH</button>
-      <button class="m-btn" id="m-grap"
-        style="width: 90px; height: 90px; background: rgba(150, 150, 150, 0.3);">GRAP</button>
+    <div id="m-right-controls">
+      <button class="act-btn" id="m-grap" style="background: rgba(180, 180, 180, 0.3);">GRAP</button>
+      <button class="act-btn" id="m-dash" style="background: rgba(100, 100, 100, 0.2);">DASH</button>
     </div>
   </div>
 
   <script>
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-
     if (isMobile) {
-      const ui = document.getElementById('m-ui');
-      const lZone = document.getElementById('m-left');
-      const track = document.getElementById('m-track');
-      const hand = document.getElementById('m-handle');
+      document.getElementById('m-ui').style.display = 'block';
+      window.scrollTo(0, 1);
 
-      ui.style.display = 'block';
-      let sx = 0, sy = 0;
+      const lZone = document.getElementById('m-left-zone');
+      const rZone = document.getElementById('m-right-zone');
+      const gBtn = document.getElementById('m-grap');
+      const dBtn = document.getElementById('m-dash');
 
+      let lx = 0, ly = 0;
       lZone.addEventListener('touchstart', e => {
-        const t = e.touches[0];
-        sx = t.clientX;
-        sy = t.clientY;
-        track.style.display = 'block';
-        track.style.left = sx + 'px';
-        track.style.top = sy + 'px';
-        keys["Space"] = true;
+        const t = e.changedTouches[0];
+        lx = t.clientX; ly = t.clientY;
       });
-
       lZone.addEventListener('touchmove', e => {
-        const t = e.touches[0];
-        const dx = t.clientX - sx;
-
-        keys["KeyA"] = dx < -25;
-        keys["KeyD"] = dx > 25;
-
-        const visualOffset = Math.max(-40, Math.min(40, dx));
-        hand.style.left = `calc(50% + ${visualOffset}px)`;
-
-        mouse.x = t.clientX + (window.innerWidth / 4);
-        mouse.y = t.clientY;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - lx;
+        const dy = t.clientY - ly;
+        keys["KeyA"] = dx < -20;
+        keys["KeyD"] = dx > 20;
+        keys["KeyW"] = dy < -25;
       });
-
       lZone.addEventListener('touchend', () => {
-        track.style.display = 'none';
-        keys["KeyA"] = false;
-        keys["KeyD"] = false;
-        keys["Space"] = false;
+        keys["KeyA"] = keys["KeyD"] = keys["KeyW"] = false;
       });
 
-      document.getElementById('m-dash').ontouchstart = (e) => {
-        e.preventDefault();
-        keys["KeyS"] = true;
-      };
-      document.getElementById('m-dash').ontouchend = () => keys["KeyS"] = false;
+      let rx = 0, ry = 0;
+      rZone.addEventListener('touchstart', e => {
+        const t = e.changedTouches[0];
+        rx = t.clientX; ry = t.clientY;
+      });
+      rZone.addEventListener('touchmove', e => {
+        const t = e.changedTouches[0];
+        const dx = (t.clientX - rx) * 1.2;
+        const dy = (t.clientY - ry) * 1.2;
 
-      document.getElementById('m-grap').ontouchstart = (e) => {
+        mouse.x = (w / 2) + dx;
+        mouse.y = (h / 2) + dy;
+      });
+
+      gBtn.ontouchstart = (e) => {
         e.preventDefault();
         if (!grapple.active) fireHarpoon();
+        keys["Space"] = true;
       };
-      document.getElementById('m-grap').ontouchend = () => {
+      gBtn.ontouchend = () => {
+        keys["Space"] = false;
         grapple.attached = false;
         grapple.returning = true;
       };
 
-      document.getElementById('m-fs').onclick = () => {
-        if (!document.fullscreenElement) canvas.requestFullscreen();
-        else document.exitFullscreen();
+      dBtn.ontouchstart = (e) => {
+        e.preventDefault();
+        keys["KeyS"] = true;
       };
+      dBtn.ontouchend = () => keys["KeyS"] = false;
+
       document.getElementById('m-ps').onclick = () => paused = !paused;
       document.getElementById('m-gr').onclick = () => gridShown = !gridShown;
     }
-
     const canvas = document.getElementById("game"), ctx = canvas.getContext("2d");
     let w, h, camX = 0, camY = 0, camZoom = 1, controlsLocked = !0;
     let lastLevelIndex = localStorage.getItem('storedLevel') !== null ? parseInt(localStorage.getItem('storedLevel')) : -1, levelTimer = 0, currentLevelName = "";
