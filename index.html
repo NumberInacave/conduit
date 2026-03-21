@@ -739,11 +739,18 @@
       if (!controlsLocked && !paused) {
         if (grapple.active) {
           if (grapple.attached) {
-            const dx = grapple.x - player.x, dy = grapple.y - player.y, dist = Math.hypot(dx, dy);
-            const nx = dx / dist, ny = dy / dist, vMag = Math.hypot(player.vx, player.vy);
-            grapple.stiffness = vMag > 0.1 ? (Math.abs((player.vx / vMag) * nx + (player.vy / vMag) * ny) * 0.8) : 1;
-            player.vx += dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
-            player.vy += dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
+            const dx = grapple.x - player.x, dy = grapple.y - player.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > 0.0001) {
+              const nx = dx / dist, ny = dy / dist;
+              const vMag = Math.hypot(player.vx, player.vy);
+
+              grapple.stiffness = vMag > 0.1 ? (Math.abs((player.vx / vMag) * nx + (player.vy / vMag) * ny) * 0.8) : 1;
+
+              player.vx += dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
+              player.vy += dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
+            }
 
             if (!keys.Space) {
               grapple.wasInGZone = gravityZones.some(z => Math.hypot(grapple.x - Math.max(z.x, Math.min(grapple.x, z.x + z.w)), grapple.y - Math.max(z.y, Math.min(grapple.y, z.y + z.h))) <= 20);
@@ -773,8 +780,9 @@
           } else {
             let minT = 1, hitWall = null;
             walls.forEach(w => {
-              let tX0 = (w.x - grapple.x) / grapple.vx, tX1 = (w.x + w.w - grapple.x) / grapple.vx;
-              let tY0 = (w.y - grapple.y) / grapple.vy, tY1 = (w.y + w.h - grapple.y) / grapple.vy;
+              let gvx = grapple.vx || 0.0001, gvy = grapple.vy || 0.0001;
+              let tX0 = (w.x - grapple.x) / gvx, tX1 = (w.x + w.w - grapple.x) / gvx;
+              let tY0 = (w.y - grapple.y) / gvy, tY1 = (w.y + w.h - grapple.y) / gvy;
               let tMin = Math.max(Math.min(tX0, tX1), Math.min(tY0, tY1));
               let tMax = Math.min(Math.max(tX0, tX1), Math.max(tY0, tY1));
               if (tMax >= tMin && tMax > 0 && tMin < minT) { minT = tMin; hitWall = w; }
@@ -817,7 +825,7 @@
         let currentGravity = GRAVITY;
         gravityZones.forEach(z => {
           if (player.x > z.x && player.x < z.x + z.w && player.y > z.y && player.y < z.y + z.h) {
-            currentGravity = z.strength;
+            currentGravity = z.strength || GRAVITY;
           }
         });
 
