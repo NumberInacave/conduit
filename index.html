@@ -16,12 +16,132 @@
       display: block;
       cursor: crosshair;
     }
+
+    #m-ui {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 99;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .m-btn {
+      border: none;
+      color: #fff;
+      font-family: monospace;
+      background: rgba(100, 100, 100, 0.2);
+    }
+
+    #m-track {
+      position: absolute;
+      width: 120px;
+      height: 30px;
+      background: rgba(100, 100, 100, 0.1);
+      display: none;
+      transform: translate(-50%, -50%);
+    }
+
+    #m-handle {
+      position: absolute;
+      width: 40px;
+      height: 30px;
+      background: rgba(200, 200, 200, 0.4);
+      left: 50%;
+      transform: translateX(-50%);
+    }
   </style>
 </head>
 
 <body>
   <canvas id="game"></canvas>
+  <div id="m-ui">
+    <div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
+      <button class="m-btn" id="m-fs" style="width: 45px; height: 45px;">FS</button>
+      <button class="m-btn" id="m-ps" style="width: 45px; height: 45px;">P</button>
+      <button class="m-btn" id="m-gr" style="width: 45px; height: 45px;">G</button>
+    </div>
+
+    <div id="m-left" style="position: absolute; bottom: 0; left: 0; width: 50%; height: 80%;">
+      <div id="m-track">
+        <div id="m-handle"></div>
+      </div>
+    </div>
+
+    <div id="m-right"
+      style="position: absolute; bottom: 40px; right: 40px; display: flex; flex-direction: column; gap: 20px;">
+      <button class="m-btn" id="m-dash" style="width: 90px; height: 90px;">DASH</button>
+      <button class="m-btn" id="m-grap"
+        style="width: 90px; height: 90px; background: rgba(150, 150, 150, 0.3);">GRAP</button>
+    </div>
+  </div>
+
   <script>
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+    if (isMobile) {
+      const ui = document.getElementById('m-ui');
+      const lZone = document.getElementById('m-left');
+      const track = document.getElementById('m-track');
+      const hand = document.getElementById('m-handle');
+
+      ui.style.display = 'block';
+      let sx = 0, sy = 0;
+
+      lZone.addEventListener('touchstart', e => {
+        const t = e.touches[0];
+        sx = t.clientX;
+        sy = t.clientY;
+        track.style.display = 'block';
+        track.style.left = sx + 'px';
+        track.style.top = sy + 'px';
+        keys["Space"] = true;
+      });
+
+      lZone.addEventListener('touchmove', e => {
+        const t = e.touches[0];
+        const dx = t.clientX - sx;
+
+        keys["KeyA"] = dx < -25;
+        keys["KeyD"] = dx > 25;
+
+        const visualOffset = Math.max(-40, Math.min(40, dx));
+        hand.style.left = `calc(50% + ${visualOffset}px)`;
+
+        mouse.x = t.clientX + (window.innerWidth / 4);
+        mouse.y = t.clientY;
+      });
+
+      lZone.addEventListener('touchend', () => {
+        track.style.display = 'none';
+        keys["KeyA"] = false;
+        keys["KeyD"] = false;
+        keys["Space"] = false;
+      });
+
+      document.getElementById('m-dash').ontouchstart = (e) => {
+        e.preventDefault();
+        keys["KeyS"] = true;
+      };
+      document.getElementById('m-dash').ontouchend = () => keys["KeyS"] = false;
+
+      document.getElementById('m-grap').ontouchstart = (e) => {
+        e.preventDefault();
+        if (!grapple.active) fireHarpoon();
+      };
+      document.getElementById('m-grap').ontouchend = () => {
+        grapple.attached = false;
+        grapple.returning = true;
+      };
+
+      document.getElementById('m-fs').onclick = () => {
+        if (!document.fullscreenElement) canvas.requestFullscreen();
+        else document.exitFullscreen();
+      };
+      document.getElementById('m-ps').onclick = () => paused = !paused;
+      document.getElementById('m-gr').onclick = () => gridShown = !gridShown;
+    }
+
     const canvas = document.getElementById("game"), ctx = canvas.getContext("2d");
     let w, h, camX = 0, camY = 0, camZoom = 1, controlsLocked = !0;
     let lastLevelIndex = localStorage.getItem('storedLevel') !== null ? parseInt(localStorage.getItem('storedLevel')) : -1, levelTimer = 0, currentLevelName = "";
