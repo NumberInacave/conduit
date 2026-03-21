@@ -52,9 +52,11 @@
         name: "GAUNTLET",
         build: () => {
           walls = [
-            { x: -1500, y: -200, w: 1500, h: 2300 },
-            { x: 0, y: -200, w: 8000, h: 100 },
+            { x: -1500, y: -1000, w: 1500, h: 3100 },
+            { x: 0, y: -700, w: 300, h: 700 },
+            { x: 800, y: -200, w: 2200, h: 100 },
             { x: 800, y: 600, w: 400, h: 400 },
+            { x: 5500, y: -600, w: 2500, h: 200 },
 
             { x: 1500, y: 900, w: 400, h: 400 },
             { x: 2800, y: 900, w: 1100, h: 100 },
@@ -62,21 +64,25 @@
             { x: 1800, y: 100, w: 100, h: 800 },
             { x: 1200, y: 100, w: 600, h: 100 },
 
-            { x: 3200, y: -100, w: 300, h: 800 },
-            { x: 400, y: -100, w: 400, h: 400 },
-            { x: 3500, y: -100, w: 2000, h: 500 },
+            { x: 3200, y: -500, w: 300, h: 1000 },
+            { x: 5000, y: -1000, w: 500, h: 600 },
+            { x: 400, y: -200, w: 400, h: 500 },
+            { x: 3500, y: -200, w: 2000, h: 500 },
             { x: 5000, y: 800, w: 1000, h: 500 },
 
             { x: 6900, y: 300, w: 1100, h: 1800 },
-            { x: 8000, y: -200, w: 1500, h: 2300 },
+            { x: 8000, y: -600, w: 1500, h: 2700 },
             { x: 0, y: 1300, w: 2100, h: 800 },
           ];
           hazards = [
-            { x: 1900, y: 1300, w: 5000, h: 800 },
+            { x: 0, y: -1000, w: 5000, h: 100 },
+            { x: 2100, y: 1300, w: 4800, h: 800 },
             { x: 1200, y: 200, w: 600, h: 100 }
           ];
           gravityZones = [
             { x: 1200, y: 900, w: 300, h: 400, strength: -defaultGravZoneStr },
+            { x: 800, y: -900, w: 700, h: 700, strength: -defaultGravZoneStr * 2 },
+            { x: 2000, y: -900, w: 700, h: 700, strength: -defaultGravZoneStr * 2 },
             { x: 2800, y: 800, w: 1100, h: 100, strength: -defaultGravZoneStr }
           ];
           goal = { x: 7400, y: 200, w: 100, h: 100 };
@@ -942,18 +948,18 @@
 
       if (grapple.active) {
         ctx.strokeStyle = grapple.attached ? "#0ff" : (grapple.returning ? "#511" : "#888");
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.moveTo(player.x, player.y);
         ctx.lineTo(grapple.x, grapple.y);
         ctx.stroke();
 
         ctx.fillStyle = ctx.strokeStyle;
-        ctx.fillRect(grapple.x - 4, grapple.y - 4, 8, 8);
+        ctx.fillRect(grapple.x - 5, grapple.y - 5, 10, 10);
       }
 
       ctx.strokeStyle = "#0ff";
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 5;
       legs.forEach(l => {
         const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
         const localX = l.side * 4, localY = 4;
@@ -966,7 +972,7 @@
         ctx.stroke();
 
         ctx.fillStyle = "#0ff";
-        ctx.fillRect(l.x - 4, l.y - 4, 8, 8);
+        ctx.fillRect(l.x - 5, l.y - 5, 10, 10);
       });
 
       ctx.save();
@@ -991,14 +997,22 @@
 
       if (gridShown) {
         ctx.beginPath();
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-        ctx.lineWidth = 0.4 / camZoom;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+        ctx.lineWidth = 0.5 / camZoom;
         const startX = Math.floor((camX - w / camZoom) / 100) * 100;
         const endX = Math.ceil((camX + w * 2 / camZoom) / 100) * 100;
         const startY = Math.floor((camY - h / camZoom) / 100) * 100;
         const endY = Math.ceil((camY + h * 2 / camZoom) / 100) * 100;
+
         for (let x = startX; x <= endX; x += 100) { ctx.moveTo(x, startY); ctx.lineTo(x, endY); }
         for (let y = startY; y <= endY; y += 100) { ctx.moveTo(startX, y); ctx.lineTo(endX, y); }
+        ctx.stroke();
+
+        ctx.beginPath();
+        const startXMajor = Math.floor(startX / 1000) * 1000, startYMajor = Math.floor(startY / 1000) * 1000;
+
+        for (let x = startXMajor; x <= endX; x += 1000) { ctx.moveTo(x, startY); ctx.lineTo(x, endY); }
+        for (let y = startYMajor; y <= endY; y += 1000) { ctx.moveTo(startX, y); ctx.lineTo(endX, y); }
         ctx.stroke();
       }
 
@@ -1008,7 +1022,7 @@
         const snapX = Math.round(worldMX / 100) * 100;
         const snapY = Math.round(worldMY / 100) * 100;
 
-        ctx.fillStyle = "rgba(0, 255, 255, 0.8)";
+        ctx.fillStyle = "rgba(0, 255, 255, 0.75)";
         ctx.beginPath();
         ctx.arc(snapX, snapY, 4 / camZoom, 0, Math.PI * 2);
         ctx.fill();
