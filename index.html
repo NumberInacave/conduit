@@ -748,14 +748,20 @@
 
               grapple.stiffness = vMag > 0.1 ? (Math.abs((player.vx / vMag) * nx + (player.vy / vMag) * ny) * 0.8) : 1;
 
-              player.vx += dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
-              player.vy += dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
+              let forceX = dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
+              let forceY = dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
+              
+              if (!isNaN(forceX) && !isNaN(forceY)) {
+                player.vx += forceX;
+                player.vy += forceY;
+              }
             }
 
             if (!keys.Space) {
               grapple.wasInGZone = gravityZones.some(z => Math.hypot(grapple.x - Math.max(z.x, Math.min(grapple.x, z.x + z.w)), grapple.y - Math.max(z.y, Math.min(grapple.y, z.y + z.h))) <= 20);
               grapple.attached = !1; grapple.returning = !0;
             }
+
           } else if (grapple.returning) {
             const dx = player.x - grapple.x, dy = player.y - grapple.y, dist = Math.hypot(dx, dy);
 
