@@ -549,7 +549,9 @@
             { x: 2000, y: 800, w: 3000, h: 700 },
             { x: 3400, y: -300, w: 200, h: 1100 },
             { x: 6000, y: -1800, w: 2600, h: 2000 },
-            { x: 11000, y: -3000, w: 200, h: 3500 },
+            { x: 11000, y: -3000, w: 200, h: 1400 },
+            { x: 11000, y: -1200, w: 200, h: 1700 },
+            { x: 10600, y: -1800, w: 400, h: 200 },
             { x: 11200, y: -3000, w: 1800, h: 200 },
             { x: 13000, y: -1000, w: 200, h: 4000 },
             { x: 13000, y: -3000, w: 200, h: 1700 },
@@ -584,7 +586,7 @@
             { x: 13200, y: -2000, w: 7300, h: 200 },
             { x: 5000, y: -2000, w: 6000, h: 200 },
             { x: 13200, y: -1000, w: 5000, h: 4000 },
-            { x: 11600, y: -1200, w: 1000, h: 500 }
+            { x: 11700, y: -1200, w: 900, h: 400 }
           ];
           gravityZones = [
             { x: 19000, y: -1000, w: 700, h: 2000, strength: defaultGravZoneStr },
@@ -750,7 +752,7 @@
 
               let forceX = dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
               let forceY = dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
-              
+
               if (!isNaN(forceX) && !isNaN(forceY)) {
                 player.vx += forceX;
                 player.vy += forceY;
@@ -918,6 +920,7 @@
       camZoom += ((1 / (1 + (speed * 0.02) + (Math.hypot(mX, mY) * zoomStrength))) - camZoom) * 0.05;
 
       player.coyote--;
+
       render();
       requestAnimationFrame(update);
     }
@@ -1009,9 +1012,9 @@
         ctx.beginPath();
         ctx.arc(snapX, snapY, 4 / camZoom, 0, Math.PI * 2);
         ctx.fill();
-        ctx.font = `${16 / camZoom}px monospace`;
+        ctx.font = `${15 / camZoom}px monospace`;
         ctx.textAlign = "left";
-        ctx.fillText(`[${snapX}, ${snapY}]`, snapX + 12 / camZoom, snapY + 5 / camZoom);
+        ctx.fillText(`[${snapX}, ${snapY}]`, snapX + 10 / camZoom, snapY + 5 / camZoom);
 
         const vMag = Math.hypot(player.vx, player.vy);
         const vAngle = Math.atan2(player.vy, player.vx);
@@ -1046,7 +1049,7 @@
         ctx.textAlign = "center";
         ctx.fillText(currentLevelName, w / 2, 50);
 
-        ctx.font = "16px monospace";
+        ctx.font = "15px monospace";
         ctx.textAlign = "left";
         ctx.fillText(`MD: ${Math.round(Math.hypot(player.vx, player.vy))} / ${Math.round(Math.atan2(player.vy, player.vx) * 180 / Math.PI)}°`, 20, 30);
         ctx.fillText(`XY: ${Math.round(player.x)} / ${Math.round(player.y)}`, 20, 50);
@@ -1080,6 +1083,7 @@
       ctx.fillStyle = "#0ff";
       ctx.fillRect(mouse.x - 1, mouse.y - 1, 2, 2);
     }
+
     loadLevel(false);
     update();
   </script>
