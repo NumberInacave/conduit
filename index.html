@@ -72,15 +72,18 @@
 
     #m-utils {
       position: absolute;
-      bottom: var(--m-margin);
-      right: var(--m-margin);
+      top: var(--m-margin);
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
       gap: var(--m-gap);
+      pointer-events: auto;
+      z-index: 110;
     }
 
     .m-btn-small {
-      width: 75px;
-      height: 75px;
+      width: 70px;
+      height: 70px;
       background: var(--m-btn-bg-color);
     }
 
@@ -124,67 +127,67 @@
     window.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-    document.getElementById('m-ui').style.display = 'block';
-    const lz = document.getElementById('m-l'), rz = document.getElementById('m-r');
-    let lx = 0, ly = 0, rx = 0, ry = 0, leftId = null, rightId = null;
+      document.getElementById('m-ui').style.display = 'block';
+      const lz = document.getElementById('m-l'), rz = document.getElementById('m-r');
+      let lx = 0, ly = 0, rx = 0, ry = 0, leftId = null, rightId = null;
 
-    const gBtn = document.getElementById('m-grap-btn'), dBtn = document.getElementById('m-dash-btn');
+      const gBtn = document.getElementById('m-grap-btn'), dBtn = document.getElementById('m-dash-btn');
 
-    gBtn.addEventListener('touchstart', e => {
-      e.preventDefault(); e.stopPropagation();
-      if (!grapple.active) fireHarpoon();
-      keys["Space"] = true;
-    }, { passive: false });
-    gBtn.addEventListener('touchend', () => {
-      keys["Space"] = false; grapple.attached = false; grapple.returning = true;
-    });
+      gBtn.addEventListener('touchstart', e => {
+        e.preventDefault(); e.stopPropagation();
+        if (!grapple.active) fireHarpoon();
+        keys["Space"] = true;
+      }, { passive: false });
+      gBtn.addEventListener('touchend', () => {
+        keys["Space"] = false; grapple.attached = false; grapple.returning = true;
+      });
 
-    dBtn.addEventListener('touchstart', e => {
-      e.preventDefault(); e.stopPropagation();
-      keys["KeyS"] = true;
-      setTimeout(() => keys["KeyS"] = false, 100);
-    }, { passive: false });
+      dBtn.addEventListener('touchstart', e => {
+        e.preventDefault(); e.stopPropagation();
+        keys["KeyS"] = true;
+        setTimeout(() => keys["KeyS"] = false, 100);
+      }, { passive: false });
 
-    document.getElementById('m-ps').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); paused = !paused; });
-    document.getElementById('m-gr').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); gridShown = !gridShown; });
+      document.getElementById('m-ps').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); paused = !paused; });
+      document.getElementById('m-gr').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); gridShown = !gridShown; });
 
-    lz.addEventListener('touchstart', e => {
-      e.preventDefault(); let t = e.changedTouches[0];
-      leftId = t.identifier; lx = t.clientX; ly = t.clientY;
-    }, { passive: false });
+      lz.addEventListener('touchstart', e => {
+        e.preventDefault(); let t = e.changedTouches[0];
+        leftId = t.identifier; lx = t.clientX; ly = t.clientY;
+      }, { passive: false });
 
-    lz.addEventListener('touchmove', e => {
-      e.preventDefault();
-      for (let t of e.changedTouches) {
-        if (t.identifier === leftId) {
-          if (t.clientX === 0) continue;
-          keys["KeyA"] = (t.clientX - lx) < -20;
-          keys["KeyD"] = (t.clientX - lx) > 20;
-          keys["KeyW"] = (t.clientY - ly) < -25;
+      lz.addEventListener('touchmove', e => {
+        e.preventDefault();
+        for (let t of e.changedTouches) {
+          if (t.identifier === leftId) {
+            if (t.clientX === 0) continue;
+            keys["KeyA"] = (t.clientX - lx) < -20;
+            keys["KeyD"] = (t.clientX - lx) > 20;
+            keys["KeyW"] = (t.clientY - ly) < -25;
+          }
         }
-      }
-    }, { passive: false });
+      }, { passive: false });
 
-    lz.addEventListener('touchend', () => { keys["KeyA"] = keys["KeyD"] = keys["KeyW"] = false; leftId = null; });
+      lz.addEventListener('touchend', () => { keys["KeyA"] = keys["KeyD"] = keys["KeyW"] = false; leftId = null; });
 
-    rz.addEventListener('touchstart', e => {
-      e.preventDefault(); let t = e.changedTouches[0];
-      rightId = t.identifier; rx = t.clientX; ry = t.clientY;
-    }, { passive: false });
+      rz.addEventListener('touchstart', e => {
+        e.preventDefault(); let t = e.changedTouches[0];
+        rightId = t.identifier; rx = t.clientX; ry = t.clientY;
+      }, { passive: false });
 
-    rz.addEventListener('touchmove', e => {
-      e.preventDefault();
-      for (let t of e.changedTouches) {
-        if (t.identifier === rightId) {
-          if (t.clientX === 0) continue;
-          mouse.x = Math.max(0, Math.min(w, mouse.x + (t.clientX - rx) * 2.5));
-          mouse.y = Math.max(0, Math.min(h, mouse.y + (t.clientY - ry) * 2.5));
-          rx = t.clientX; ry = t.clientY;
+      rz.addEventListener('touchmove', e => {
+        e.preventDefault();
+        for (let t of e.changedTouches) {
+          if (t.identifier === rightId) {
+            if (t.clientX === 0) continue;
+            mouse.x = Math.max(0, Math.min(w, mouse.x + (t.clientX - rx) * 2.5));
+            mouse.y = Math.max(0, Math.min(h, mouse.y + (t.clientY - ry) * 2.5));
+            rx = t.clientX; ry = t.clientY;
+          }
         }
-      }
-    }, { passive: false });
+      }, { passive: false });
 
-    rz.addEventListener('touchend', () => { rightId = null; });
+      rz.addEventListener('touchend', () => { rightId = null; });
     }
 
     const canvas = document.getElementById("game"), ctx = canvas.getContext("2d");
