@@ -8,6 +8,12 @@
 
   <title>conduit</title>
   <style>
+    :root {
+      --m-margin: 20px;
+      --m-gap: 10px;
+      --m-btn-bg-color: rgba(100, 100, 100, 0.3);
+    }
+
     html,
     body {
       margin: 0;
@@ -46,11 +52,11 @@
 
     #m-action-col {
       position: absolute;
-      top: 20px;
-      right: 20px;
+      top: var(--m-margin);
+      right: var(--m-margin);
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: var(--m-gap);
     }
 
     #m-dash-btn,
@@ -61,21 +67,21 @@
 
     #m-dash-btn,
     #m-grap-btn {
-      background: rgba(100, 100, 100, 0.3);
+      background: var(--m-btn-bg-color);
     }
 
     #m-utils {
       position: absolute;
-      top: 20px;
-      left: 20px;
+      bottom: var(--m-margin);
+      left: var(--m-margin);
       display: flex;
-      gap: 20px;
+      gap: var(--m-gap);
     }
 
     .m-btn-small {
       width: 75px;
       height: 75px;
-      background: rgba(80, 80, 80, 0.3);
+      background: var(--m-btn-bg-color);
     }
 
     #m-l {
