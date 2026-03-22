@@ -36,23 +36,35 @@
       pointer-events: none;
     }
 
-    #m-btn-container {
+    #m-controls {
       position: absolute;
-      top: 15px;
-      right: 15px;
+      bottom: 20px;
+      right: 20px;
       display: flex;
-      gap: 10px;
+      flex-direction: column;
+      gap: 15px;
+      align-items: flex-end;
       pointer-events: auto;
       z-index: 102;
     }
 
-    .m-btn {
-      pointer-events: auto;
+    .m-btn-big {
+      width: 80px;
+      height: 80px;
+      background: rgba(140, 140, 140, 0.4);
       border: none;
       color: #fff;
+      font-family: monospace;
+      font-weight: bold;
+    }
+
+    .m-btn-small {
+      width: 45px;
+      height: 45px;
       background: rgba(80, 80, 80, 0.3);
-      width: 50px;
-      height: 50px;
+      border: none;
+      color: #fff;
+      font-family: monospace;
     }
   </style>
 </head>
@@ -61,13 +73,19 @@
   <canvas id="game"></canvas>
 
   <div id="m-ui">
-    <div id="m-btn-container">
-      <button class="m-btn" id="m-ps">P</button>
-      <button class="m-btn" id="m-gr">G</button>
-    </div>
-
     <div id="m-l" style="position: absolute; inset: 0 50% 0 0; pointer-events: auto; z-index: 100;"></div>
     <div id="m-r" style="position: absolute; inset: 0 0 0 50%; pointer-events: auto; z-index: 100;"></div>
+  
+    <div id="m-controls">
+      <div style="display: flex; gap: 15px;">
+        <button class="m-btn-big" id="m-grap-btn">GRAP</button>
+        <button class="m-btn-big" id="m-dash-btn">DASH</button>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="m-btn-small" id="m-ps">P</button>
+        <button class="m-btn-small" id="m-gr">G</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -89,6 +107,28 @@
 
       document.getElementById('m-ps').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); paused = !paused; }, { passive: false });
       document.getElementById('m-gr').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); gridShown = !gridShown; }, { passive: false });
+
+      const gBtn = document.getElementById('m-grap-btn');
+      const dBtn = document.getElementById('m-dash-btn');
+
+      gBtn.addEventListener('touchstart', e => {
+        e.preventDefault(); e.stopPropagation();
+        if (!grapple.active) fireHarpoon();
+        keys["Space"] = true;
+      }, { passive: false });
+
+      gBtn.addEventListener('touchend', e => {
+        e.preventDefault(); e.stopPropagation();
+        keys["Space"] = false;
+        grapple.attached = false;
+        grapple.returning = true;
+      }, { passive: false });
+
+      dBtn.addEventListener('touchstart', e => {
+        e.preventDefault(); e.stopPropagation();
+        keys["KeyS"] = true;
+        setTimeout(() => keys["KeyS"] = false, 100);
+      }, { passive: false });
 
       lz.addEventListener('touchstart', e => {
         e.preventDefault();
@@ -126,8 +166,6 @@
         const t = e.changedTouches[0];
         rightTouchId = t.identifier;
         rx = t.clientX; ry = t.clientY;
-        if (!grapple.active) fireHarpoon();
-        keys["Space"] = true;
       }, { passive: false });
 
       rz.addEventListener('touchmove', e => {
@@ -145,12 +183,7 @@
       rz.addEventListener('touchend', e => {
         e.preventDefault();
         for (let t of e.changedTouches) {
-          if (t.identifier === rightTouchId) {
-            rightTouchId = null;
-            keys["Space"] = false;
-            grapple.attached = false;
-            grapple.returning = true;
-          }
+          if (t.identifier === rightTouchId) rightTouchId = null;
         }
       }, { passive: false });
     }
