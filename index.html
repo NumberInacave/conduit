@@ -36,35 +36,44 @@
       pointer-events: none;
     }
 
-    #m-controls {
-      position: absolute;
-      bottom: 20px;
-      right: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-      align-items: flex-end;
-      pointer-events: auto;
-      z-index: 102;
-    }
-
-    .m-btn-big {
-      width: 80px;
-      height: 80px;
-      background: rgba(140, 140, 140, 0.4);
+    .m-btn {
       border: none;
       color: #fff;
       font-family: monospace;
       font-weight: bold;
+      pointer-events: auto;
+    }
+
+    #m-grap-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 90px;
+      height: 90px;
+      background: rgba(100, 100, 100, 0.5);
+    }
+
+    #m-dash-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 90px;
+      height: 90px;
+      background: rgba(100, 100, 100, 0.3);
+    }
+
+    #m-utils {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      gap: 10px;
     }
 
     .m-btn-small {
-      width: 45px;
-      height: 45px;
-      background: rgba(80, 80, 80, 0.3);
-      border: none;
-      color: #fff;
-      font-family: monospace;
+      width: 50px;
+      height: 50px;
+      background: rgba(100, 100, 100, 0.5);
     }
   </style>
 </head>
@@ -76,15 +85,12 @@
     <div id="m-l" style="position: absolute; inset: 0 50% 0 0; pointer-events: auto; z-index: 100;"></div>
     <div id="m-r" style="position: absolute; inset: 0 0 0 50%; pointer-events: auto; z-index: 100;"></div>
   
-    <div id="m-controls">
-      <div style="display: flex; gap: 15px;">
-        <button class="m-btn-big" id="m-grap-btn">GRAP</button>
-        <button class="m-btn-big" id="m-dash-btn">DASH</button>
-      </div>
-      <div style="display: flex; gap: 10px;">
-        <button class="m-btn-small" id="m-ps">P</button>
-        <button class="m-btn-small" id="m-gr">G</button>
-      </div>
+    <button class="m-btn" id="m-grap-btn">GRAP</button>
+    <button class="m-btn" id="m-dash-btn">DASH</button>
+  
+    <div id="m-utils">
+      <button class="m-btn m-btn-small" id="m-ps">P</button>
+      <button class="m-btn m-btn-small" id="m-gr">G</button>
     </div>
   </div>
 
@@ -146,7 +152,6 @@
             keys["KeyA"] = dx < -20;
             keys["KeyD"] = dx > 20;
             keys["KeyW"] = dy < -25;
-            keys["KeyS"] = dy > 25;
           }
         }
       }, { passive: false });
