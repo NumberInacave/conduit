@@ -34,7 +34,6 @@
       pointer-events: none;
     }
 
-    /* Larger Text & Right-Side Action Column */
     .m-btn {
       border: none;
       color: #fff;
@@ -42,45 +41,40 @@
       font-weight: bold;
       pointer-events: auto;
       z-index: 110;
-      font-size: 18px;
-      /* Bigger Text */
+      font-size: 32px;
     }
 
-    /* Right Side Stack: Dash (Top) then Grap (Below) */
     #m-action-col {
       position: absolute;
       top: 20px;
       right: 20px;
       display: flex;
       flex-direction: column;
-      gap: 15px;
+      gap: 10px;
     }
 
     #m-dash-btn,
     #m-grap-btn {
-      width: 100px;
-      height: 100px;
+      width: 150px;
+      height: 150px;
     }
 
-    #m-dash-btn {
-      background: rgba(100, 100, 100, 0.3);
-    }
-
+    #m-dash-btn,
     #m-grap-btn {
-      background: rgba(150, 150, 150, 0.4);
+      background: rgba(100, 100, 100, 0.3);
     }
 
     #m-utils {
       position: absolute;
-      bottom: 20px;
-      right: 20px;
+      top: 20px;
+      left: 20px;
       display: flex;
-      gap: 10px;
+      gap: 20px;
     }
 
     .m-btn-small {
-      width: 55px;
-      height: 55px;
+      width: 75px;
+      height: 75px;
       background: rgba(80, 80, 80, 0.3);
     }
 
@@ -106,12 +100,12 @@
   <div id="m-ui">
     <div id="m-l"></div>
     <div id="m-r"></div>
-  
+
     <div id="m-action-col">
       <button class="m-btn" id="m-dash-btn">^</button>
       <button class="m-btn" id="m-grap-btn">␣</button>
     </div>
-  
+
     <div id="m-utils">
       <button class="m-btn m-btn-small" id="m-ps">P</button>
       <button class="m-btn m-btn-small" id="m-gr">G</button>
@@ -124,67 +118,67 @@
     window.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-      document.getElementById('m-ui').style.display = 'block';
-      const lz = document.getElementById('m-l'), rz = document.getElementById('m-r');
-      let lx = 0, ly = 0, rx = 0, ry = 0, leftId = null, rightId = null;
+    document.getElementById('m-ui').style.display = 'block';
+    const lz = document.getElementById('m-l'), rz = document.getElementById('m-r');
+    let lx = 0, ly = 0, rx = 0, ry = 0, leftId = null, rightId = null;
 
-      const gBtn = document.getElementById('m-grap-btn'), dBtn = document.getElementById('m-dash-btn');
+    const gBtn = document.getElementById('m-grap-btn'), dBtn = document.getElementById('m-dash-btn');
 
-      gBtn.addEventListener('touchstart', e => {
-        e.preventDefault(); e.stopPropagation();
-        if (!grapple.active) fireHarpoon();
-        keys["Space"] = true;
-      }, { passive: false });
-      gBtn.addEventListener('touchend', () => {
-        keys["Space"] = false; grapple.attached = false; grapple.returning = true;
-      });
+    gBtn.addEventListener('touchstart', e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!grapple.active) fireHarpoon();
+      keys["Space"] = true;
+    }, { passive: false });
+    gBtn.addEventListener('touchend', () => {
+      keys["Space"] = false; grapple.attached = false; grapple.returning = true;
+    });
 
-      dBtn.addEventListener('touchstart', e => {
-        e.preventDefault(); e.stopPropagation();
-        keys["KeyS"] = true;
-        setTimeout(() => keys["KeyS"] = false, 100);
-      }, { passive: false });
+    dBtn.addEventListener('touchstart', e => {
+      e.preventDefault(); e.stopPropagation();
+      keys["KeyS"] = true;
+      setTimeout(() => keys["KeyS"] = false, 100);
+    }, { passive: false });
 
-      document.getElementById('m-ps').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); paused = !paused; });
-      document.getElementById('m-gr').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); gridShown = !gridShown; });
+    document.getElementById('m-ps').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); paused = !paused; });
+    document.getElementById('m-gr').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); gridShown = !gridShown; });
 
-      lz.addEventListener('touchstart', e => {
-        e.preventDefault(); let t = e.changedTouches[0];
-        leftId = t.identifier; lx = t.clientX; ly = t.clientY;
-      }, { passive: false });
+    lz.addEventListener('touchstart', e => {
+      e.preventDefault(); let t = e.changedTouches[0];
+      leftId = t.identifier; lx = t.clientX; ly = t.clientY;
+    }, { passive: false });
 
-      lz.addEventListener('touchmove', e => {
-        e.preventDefault();
-        for (let t of e.changedTouches) {
-          if (t.identifier === leftId) {
-            if (t.clientX === 0) continue;
-            keys["KeyA"] = (t.clientX - lx) < -20;
-            keys["KeyD"] = (t.clientX - lx) > 20;
-            keys["KeyW"] = (t.clientY - ly) < -25;
-          }
+    lz.addEventListener('touchmove', e => {
+      e.preventDefault();
+      for (let t of e.changedTouches) {
+        if (t.identifier === leftId) {
+          if (t.clientX === 0) continue;
+          keys["KeyA"] = (t.clientX - lx) < -20;
+          keys["KeyD"] = (t.clientX - lx) > 20;
+          keys["KeyW"] = (t.clientY - ly) < -25;
         }
-      }, { passive: false });
+      }
+    }, { passive: false });
 
-      lz.addEventListener('touchend', () => { keys["KeyA"] = keys["KeyD"] = keys["KeyW"] = false; leftId = null; });
+    lz.addEventListener('touchend', () => { keys["KeyA"] = keys["KeyD"] = keys["KeyW"] = false; leftId = null; });
 
-      rz.addEventListener('touchstart', e => {
-        e.preventDefault(); let t = e.changedTouches[0];
-        rightId = t.identifier; rx = t.clientX; ry = t.clientY;
-      }, { passive: false });
+    rz.addEventListener('touchstart', e => {
+      e.preventDefault(); let t = e.changedTouches[0];
+      rightId = t.identifier; rx = t.clientX; ry = t.clientY;
+    }, { passive: false });
 
-      rz.addEventListener('touchmove', e => {
-        e.preventDefault();
-        for (let t of e.changedTouches) {
-          if (t.identifier === rightId) {
-            if (t.clientX === 0) continue;
-            mouse.x = Math.max(0, Math.min(w, mouse.x + (t.clientX - rx) * 2.5));
-            mouse.y = Math.max(0, Math.min(h, mouse.y + (t.clientY - ry) * 2.5));
-            rx = t.clientX; ry = t.clientY;
-          }
+    rz.addEventListener('touchmove', e => {
+      e.preventDefault();
+      for (let t of e.changedTouches) {
+        if (t.identifier === rightId) {
+          if (t.clientX === 0) continue;
+          mouse.x = Math.max(0, Math.min(w, mouse.x + (t.clientX - rx) * 2.5));
+          mouse.y = Math.max(0, Math.min(h, mouse.y + (t.clientY - ry) * 2.5));
+          rx = t.clientX; ry = t.clientY;
         }
-      }, { passive: false });
+      }
+    }, { passive: false });
 
-      rz.addEventListener('touchend', () => { rightId = null; });
+    rz.addEventListener('touchend', () => { rightId = null; });
     }
 
     const canvas = document.getElementById("game"), ctx = canvas.getContext("2d");
