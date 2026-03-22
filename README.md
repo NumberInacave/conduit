@@ -16,8 +16,8 @@ click - enter fullscreen<br>
 esc - exit fullscreen
 
 ### on mobile
-"invisible" thumbstick on the left half of the screen - movement left and right, jumping<br>
-thumbstick ont the right half - looking around/moving crosshair<br><br>
+invisible "joystick" on the left half of the screen - movement left and right, jumping<br>
+joystick on the right half - looking around/moving crosshair<br><br>
 
 top button on the top right - dash<br>
 bottom button on the top right - grapple (hold)<br><br>
