@@ -19,8 +19,10 @@ esc - exit fullscreen
 invisible "joystick" on the left half of the screen - movement left and right, jumping<br>
 joystick on the right half - looking around/moving crosshair<br><br>
 
-top button on the top right - dash<br>
-bottom button on the top right - grapple (hold)<br><br>
+top right:<br>
+top button - dash<br>
+bottom button - grapple (hold)<br><br>
 
-left button on the bottom left - toggle pause<br>
-right button on the bottom left - toggle grid
+top middle:<br>
+left button - toggle pause<br>
+right button - toggle grid
