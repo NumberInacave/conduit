@@ -3,6 +3,9 @@
 
 <head>
   <meta charset="UTF-8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
   <title>conduit</title>
   <style>
     html,
@@ -73,40 +76,55 @@
     window.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      window.scrollTo(0, 1);
+      document.body.style.position = 'fixed';
+      document.body.style.height = '100%';
+      document.body.style.width = '100%';
+
       document.getElementById('m-ui').style.display = 'block';
 
       const lz = document.getElementById('m-l'), rz = document.getElementById('m-r');
       let lx = 0, ly = 0, rx = 0, ry = 0;
+      let leftTouchId = null, rightTouchId = null;
 
       document.getElementById('m-ps').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); paused = !paused; }, { passive: false });
       document.getElementById('m-gr').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); gridShown = !gridShown; }, { passive: false });
 
       lz.addEventListener('touchstart', e => {
         e.preventDefault();
-        const t = e.touches[0];
+        const t = e.changedTouches[0];
+        leftTouchId = t.identifier;
         lx = t.clientX; ly = t.clientY;
-        if (!grapple.active) fireHarpoon();
-        keys["Space"] = true;
       }, { passive: false });
 
       lz.addEventListener('touchmove', e => {
         e.preventDefault();
-        const t = e.touches[0];
-        const dx = t.clientX - lx, dy = t.clientY - ly;
-        keys["KeyA"] = dx < -20;
-        keys["KeyD"] = dx > 20;
-        keys["KeyW"] = dy < -25;
-        keys["KeyS"] = dy > 25;
+        for (let t of e.changedTouches) {
+          if (t.identifier === leftTouchId) {
+            if (t.clientX === 0 && t.clientY === 0) continue;
+            const dx = t.clientX - lx, dy = t.clientY - ly;
+            keys["KeyA"] = dx < -20;
+            keys["KeyD"] = dx > 20;
+            keys["KeyW"] = dy < -25;
+            keys["KeyS"] = dy > 25;
+          }
+        }
       }, { passive: false });
 
       lz.addEventListener('touchend', e => {
-        keys["KeyA"] = keys["KeyD"] = keys["KeyW"] = keys["KeyS"] = keys["Space"] = false;
-        grapple.attached = false; grapple.returning = true;
+        e.preventDefault();
+        for (let t of e.changedTouches) {
+          if (t.identifier === leftTouchId) {
+            leftTouchId = null;
+            keys["KeyA"] = keys["KeyD"] = keys["KeyW"] = keys["KeyS"] = false;
+          }
+        }
       }, { passive: false });
 
       rz.addEventListener('touchstart', e => {
         e.preventDefault();
-        const t = e.touches[0];
+        const t = e.changedTouches[0];
+        rightTouchId = t.identifier;
         rx = t.clientX; ry = t.clientY;
         if (!grapple.active) fireHarpoon();
         keys["Space"] = true;
@@ -114,15 +132,26 @@
 
       rz.addEventListener('touchmove', e => {
         e.preventDefault();
-        const t = e.touches[0];
-        mouse.x = Math.max(0, Math.min(window.innerWidth, mouse.x + (t.clientX - rx) * 1.5));
-        mouse.y = Math.max(0, Math.min(window.innerHeight, mouse.y + (t.clientY - ry) * 1.5));
-        rx = t.clientX; ry = t.clientY;
+        for (let t of e.changedTouches) {
+          if (t.identifier === rightTouchId) {
+            if (t.clientX === 0 && t.clientY === 0) continue;
+            mouse.x = Math.max(0, Math.min(window.innerWidth, mouse.x + (t.clientX - rx) * 1.5));
+            mouse.y = Math.max(0, Math.min(window.innerHeight, mouse.y + (t.clientY - ry) * 1.5));
+            rx = t.clientX; ry = t.clientY;
+          }
+        }
       }, { passive: false });
 
       rz.addEventListener('touchend', e => {
-        keys["Space"] = false;
-        grapple.attached = false; grapple.returning = true;
+        e.preventDefault();
+        for (let t of e.changedTouches) {
+          if (t.identifier === rightTouchId) {
+            rightTouchId = null;
+            keys["Space"] = false;
+            grapple.attached = false;
+            grapple.returning = true;
+          }
+        }
       }, { passive: false });
     }
 
@@ -145,7 +174,7 @@
       active: !1, attached: !1, returning: !1, wasInGZone: !1
     };
     const player = { x: 100, y: 100, vx: 0, vy: 0, size: 10, coyote: 0, dashCD: 0, canDash: !0, onGround: !1 };
-    const keys = {}, mouse = { x: 0, y: 0 };
+    const keys = {}, mouse = { x: w / 2, y: h / 2 };
     const legs = [
       { x: 0, y: 0, targetX: 0, targetY: 0, side: -1, stepping: !1 },
       { x: 0, y: 0, targetX: 0, targetY: 0, side: 1, stepping: !1 }
@@ -830,7 +859,7 @@
 
       setTimeout(() => { controlsLocked = false; }, 1000);
     }
-  
+
     function update() {
       if (levelTimer > 0) levelTimer--;
 
@@ -897,7 +926,13 @@
               grapple.wasInGZone = gravityZones.some(z => Math.hypot(grapple.x - Math.max(z.x, Math.min(grapple.x, z.x + z.w)), grapple.y - Math.max(z.y, Math.min(grapple.y, z.y + z.h))) <= 20);
               grapple.attached = !0;
             } else {
-              grapple.x += grapple.vx; grapple.y += grapple.vy;
+              grapple.x += grapple.vx;
+              grapple.y += grapple.vy;
+            }
+
+            if (hazards.some(h => grapple.x > h.x && grapple.x < h.x + h.w && grapple.y > h.y && grapple.y < h.y + h.h)) {
+              grapple.attached = false;
+              grapple.returning = true;
             }
 
             if (Math.hypot(grapple.x - player.x, grapple.y - player.y) > 3000) {
