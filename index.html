@@ -12,21 +12,18 @@
     body {
       margin: 0;
       padding: 0;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100svh;
       overflow: hidden;
       position: fixed;
       background: #000;
-      font-family: monospace;
-      touch-action: none;
-      -webkit-user-select: none;
     }
 
     canvas {
       display: block;
-      touch-action: none;
       width: 100vw;
-      height: 100vh;
+      height: 100svh;
+      touch-action: none;
     }
 
     #m-ui {
@@ -34,33 +31,43 @@
       position: fixed;
       inset: 0;
       z-index: 100;
-
       pointer-events: none;
     }
 
+    /* Larger Text & Right-Side Action Column */
     .m-btn {
       border: none;
       color: #fff;
+      font-family: monospace;
       font-weight: bold;
       pointer-events: auto;
       z-index: 110;
-      position: absolute;
+      font-size: 18px;
+      /* Bigger Text */
     }
 
-    #m-grap-btn {
+    /* Right Side Stack: Dash (Top) then Grap (Below) */
+    #m-action-col {
+      position: absolute;
       top: 20px;
-      left: 20px;
-      width: 90px;
-      height: 90px;
-      background: rgba(150, 150, 150, 0.4);
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    #m-dash-btn,
+    #m-grap-btn {
+      width: 100px;
+      height: 100px;
     }
 
     #m-dash-btn {
-      top: 20px;
-      right: 20px;
-      width: 90px;
-      height: 90px;
       background: rgba(100, 100, 100, 0.3);
+    }
+
+    #m-grap-btn {
+      background: rgba(150, 150, 150, 0.4);
     }
 
     #m-utils {
@@ -69,15 +76,12 @@
       right: 20px;
       display: flex;
       gap: 10px;
-      pointer-events: auto;
-      z-index: 110;
     }
 
     .m-btn-small {
-      width: 50px;
-      height: 50px;
+      width: 55px;
+      height: 55px;
       background: rgba(80, 80, 80, 0.3);
-      position: static;
     }
 
     #m-l {
@@ -100,12 +104,14 @@
   <canvas id="game"></canvas>
 
   <div id="m-ui">
-    <div id="m-l" style="position: absolute; inset: 0 50% 0 0; pointer-events: auto; z-index: 100;"></div>
-    <div id="m-r" style="position: absolute; inset: 0 0 0 50%; pointer-events: auto; z-index: 100;"></div>
-
-    <button class="m-btn" id="m-grap-btn">␣</button>
-    <button class="m-btn" id="m-dash-btn">^</button>
-
+    <div id="m-l"></div>
+    <div id="m-r"></div>
+  
+    <div id="m-action-col">
+      <button class="m-btn" id="m-dash-btn">^</button>
+      <button class="m-btn" id="m-grap-btn">␣</button>
+    </div>
+  
     <div id="m-utils">
       <button class="m-btn m-btn-small" id="m-ps">P</button>
       <button class="m-btn m-btn-small" id="m-gr">G</button>
