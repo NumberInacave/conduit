@@ -8,6 +8,10 @@
 
   <title>conduit</title>
   <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
     :root {
       --margin: 20px;
       --gap: 10px;
@@ -46,29 +50,29 @@
       font-family: monospace;
       font-weight: bold;
       pointer-events: auto;
-      z-index: 110;
+      z-index: 200;
       font-size: 32px;
+      background: var(--btn-bg-color);
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     #action-col {
       position: absolute;
       top: 50%;
-      transform: translateY(-50%);
       right: var(--margin);
+      transform: translateY(-50%);
       display: flex;
       flex-direction: column;
       gap: var(--gap);
+      pointer-events: none;
+      z-index: 200;
     }
 
     #dash-btn,
     #grap-btn {
       width: 150px;
       height: 150px;
-    }
-
-    #dash-btn,
-    #grap-btn {
-      background: var(--btn-bg-color);
     }
 
     #utils {
@@ -79,47 +83,49 @@
       display: flex;
       gap: var(--gap);
       pointer-events: auto;
-      z-index: 110;
+      z-index: 200;
     }
 
     .btn-small {
       width: 70px;
       height: 70px;
-      background: var(--btn-bg-color);
+    }
+
+    #l,
+    #r {
+      position: absolute;
+      pointer-events: auto;
+      z-index: 50;
     }
 
     #l {
-      position: absolute;
       inset: 0 50% 0 0;
-      pointer-events: auto;
-      z-index: 100;
     }
 
     #r {
-      position: absolute;
       inset: 0 0 0 50%;
-      pointer-events: auto;
-      z-index: 100;
+    }
+
+    .btn-active {
+      background: rgba(50, 50, 50, 0.3) !important;
     }
   </style>
 </head>
 
-<body>
+<body ontouchstart="">
   <canvas id="game"></canvas>
 
   <div id="ui">
-    <div id="l"></div>
-    <div id="r"></div>
-
     <div id="action-col">
       <button class="btn" id="dash-btn">^</button>
       <button class="btn" id="grap-btn">*</button>
     </div>
-
     <div id="utils">
       <button class="btn btn-small" id="gr">#</button>
       <button class="btn btn-small" id="ps">></button>
     </div>
+    <div id="l"></div>
+    <div id="r"></div>
   </div>
 
   <script>
@@ -135,25 +141,61 @@
       const gBtn = document.getElementById('grap-btn'), dBtn = document.getElementById('dash-btn');
 
       gBtn.addEventListener('touchstart', e => {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
+        gBtn.classList.add('btn-active');
         if (!grapple.active) fireHarpoon();
         keys["Space"] = true;
       }, { passive: false });
-      gBtn.addEventListener('touchend', () => {
+
+      gBtn.addEventListener('touchend', e => {
+        e.preventDefault();
+        gBtn.classList.remove('btn-active')
         keys["Space"] = false; grapple.attached = false; grapple.returning = true;
-      });
+      }, { passive: false });
 
       dBtn.addEventListener('touchstart', e => {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
+        dBtn.classList.add('btn-active');
         keys["KeyS"] = true;
         setTimeout(() => keys["KeyS"] = false, 100);
       }, { passive: false });
 
-      document.getElementById('ps').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); paused = !paused; });
-      document.getElementById('gr').addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); gridShown = !gridShown; });
+      dBtn.addEventListener('touchend', e => {
+        e.preventDefault();
+        dBtn.classList.remove('btn-active');
+        keys["KeyS"] = false;
+      }, { passive: false });
+
+      const psBtn = document.getElementById('ps');
+      psBtn.addEventListener('touchstart', e => {
+        e.preventDefault(); e.stopPropagation();
+        psBtn.classList.add('btn-active');
+        paused = !paused;
+      }, { passive: false });
+
+      psBtn.addEventListener('touchend', e => {
+        e.preventDefault();
+        psBtn.classList.remove('btn-active');
+      }, { passive: false });
+
+      const grBtn = document.getElementById('gr');
+      grBtn.addEventListener('touchstart', e => {
+        e.preventDefault(); e.stopPropagation();
+        grBtn.classList.add('btn-active');
+        gridShown = !gridShown;
+      }, { passive: false });
+
+      grBtn.addEventListener('touchend', e => {
+        e.preventDefault();
+        grBtn.classList.remove('btn-active');
+      }, { passive: false });
 
       lz.addEventListener('touchstart', e => {
-        e.preventDefault(); let t = e.changedTouches[0];
+        if (e.target.closest('.btn')) return;
+        e.preventDefault();
+        let t = e.changedTouches[0];
         leftId = t.identifier; lx = t.clientX; ly = t.clientY;
       }, { passive: false });
 
@@ -169,10 +211,19 @@
         }
       }, { passive: false });
 
-      lz.addEventListener('touchend', () => { keys["KeyA"] = keys["KeyD"] = keys["KeyW"] = false; leftId = null; });
+      lz.addEventListener('touchend', e => {
+        for (let t of e.changedTouches) {
+          if (t.identifier === leftId) {
+            keys["KeyA"] = keys["KeyD"] = keys["KeyW"] = false;
+            leftId = null;
+          }
+        }
+      }, { passive: false });
 
       rz.addEventListener('touchstart', e => {
-        e.preventDefault(); let t = e.changedTouches[0];
+        if (e.target.closest('.btn')) return;
+        e.preventDefault();
+        let t = e.changedTouches[0];
         rightId = t.identifier; rx = t.clientX; ry = t.clientY;
       }, { passive: false });
 
@@ -188,7 +239,13 @@
         }
       }, { passive: false });
 
-      rz.addEventListener('touchend', () => { rightId = null; });
+      rz.addEventListener('touchend', e => {
+        for (let t of e.changedTouches) {
+          if (t.identifier === rightId) {
+            rightId = null;
+          }
+        }
+      }, { passive: false });
     }
 
     const canvas = document.getElementById("game"), ctx = canvas.getContext("2d");
@@ -936,8 +993,8 @@
       currentLevelName = l.name;
       document.title = "conduit - " + String(currentLevelName).toLowerCase();
 
-      grapple.active = false;
-      player.vx = 0; player.vy = 0;
+      grapple.active = grapple.attached = grapple.returning = !1;
+      player.vx = player.vy = 0;
       camFollX = player.x; camFollY = player.y;
       camX = player.x - w / 2; camY = player.y - h / 2;
 
@@ -950,29 +1007,19 @@
       if (!controlsLocked && !paused) {
         if (grapple.active) {
           if (grapple.attached) {
-            const dx = grapple.x - player.x, dy = grapple.y - player.y;
-            const dist = Math.hypot(dx, dy);
+            const dx = grapple.x - player.x, dy = grapple.y - player.y, dist = Math.hypot(dx, dy);
 
-            if (dist > 0.0001) {
-              const nx = dx / dist, ny = dy / dist;
-              const vMag = Math.hypot(player.vx, player.vy);
+            if (dist > 1) {
+              const nx = dx / dist, ny = dy / dist, vMag = Math.hypot(player.vx, player.vy);
+              grapple.stiffness = vMag > .1 ? Math.abs(player.vx / vMag * nx + player.vy / vMag * ny) * .8 : 1;
 
-              grapple.stiffness = vMag > 0.1 ? (Math.abs((player.vx / vMag) * nx + (player.vy / vMag) * ny) * 0.8) : 1;
+              let fx = dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
+              let fy = dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
 
-              let forceX = dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
-              let forceY = dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
-
-              if (!isNaN(forceX) && !isNaN(forceY)) {
-                player.vx += forceX;
-                player.vy += forceY;
-              }
-            }
-
-            if (!keys.Space) {
-              grapple.wasInGZone = gravityZones.some(z => Math.hypot(grapple.x - Math.max(z.x, Math.min(grapple.x, z.x + z.w)), grapple.y - Math.max(z.y, Math.min(grapple.y, z.y + z.h))) <= 20);
+              isNaN(fx) || isNaN(fy) || (player.vx += fx, player.vy += fy)
+            } else {
               grapple.attached = !1; grapple.returning = !0;
             }
-
           } else if (grapple.returning) {
             const dx = player.x - grapple.x, dy = player.y - grapple.y, dist = Math.hypot(dx, dy);
 
@@ -1014,14 +1061,8 @@
               grapple.y += grapple.vy;
             }
 
-            if (hazards.some(h => grapple.x > h.x && grapple.x < h.x + h.w && grapple.y > h.y && grapple.y < h.y + h.h)) {
-              grapple.attached = false;
-              grapple.returning = true;
-            }
-
-            if (Math.hypot(grapple.x - player.x, grapple.y - player.y) > 3000) {
-              grapple.returning = !0; grapple.wasInGZone = !1;
-            }
+            (hazards.some(h => grapple.x > h.x && grapple.x < h.x + h.w && grapple.y > h.y && grapple.y < h.y + h.h) ||
+              Math.hypot(grapple.x - player.x, grapple.y - player.y) > 2500) && (grapple.attached = !1, grapple.returning = !0);
           }
         }
 
@@ -1052,11 +1093,10 @@
           }
         });
 
-        if (player.isJumping && player.vy < 0) {
-          player.vy += currentGravity * 0.45;
-        } else {
-          player.vy += currentGravity;
-        }
+        player.vy += player.isJumping && player.vy < 0 ? currentGravity * .45 : currentGravity;
+
+        player.vx = Math.max(-10000, Math.min(10000, player.vx));
+        player.vy = Math.max(-10000, Math.min(10000, player.vy));
 
         let sideH = player.vx > 0 ? player.size : -player.size;
         let rH1 = getRayWallDist(player.x + sideH, player.y - player.size + 1, player.vx, 0);
