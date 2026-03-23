@@ -602,7 +602,7 @@
             { x: 1500, y: 5100, w: 2000, h: 400, strength: -defaultGravZoneStr },
             { x: 7500, y: 4200, w: 2500, h: 300, strength: defaultGravZoneStr }
           ];
-          goal = { x: 0, y: 3800, w: 100, h: 100 };
+          goal = { x: 0, y: 5900, w: 100, h: 100 };
           player.x = 300; player.y = 3000;
         }
       },
@@ -1001,6 +1001,27 @@
       setTimeout(() => { controlsLocked = false; }, 1000);
     }
 
+    function drawTaperedLine(x1, y1, x2, y2, startWidth, endWidth) {
+      const steps = 10;
+      for (let i = 0; i < steps; i++) {
+        const t1 = i / steps;
+        const t2 = (i + 1) / steps;
+
+        const sx = x1 + (x2 - x1) * t1;
+        const sy = y1 + (y2 - y1) * t1;
+        const ex = x1 + (x2 - x1) * t2;
+        const ey = y1 + (y2 - y1) * t2;
+
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(ex, ey);
+
+        ctx.lineWidth = startWidth + (endWidth - startWidth) * t1;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+    }
+
     function update() {
       if (levelTimer > 0) levelTimer--;
 
@@ -1199,9 +1220,7 @@
         ctx.strokeStyle = grapple.attached ? "#0ff" : (grapple.returning ? "#511" : "#888");
         ctx.lineWidth = 5;
         ctx.beginPath();
-        ctx.moveTo(player.x, player.y);
-        ctx.lineTo(grapple.x, grapple.y);
-        ctx.stroke();
+        drawTaperedLine(player.x, player.y, grapple.x, grapple.y, 2, 5);
 
         ctx.fillStyle = ctx.strokeStyle;
         ctx.fillRect(grapple.x - 5, grapple.y - 5, 10, 10);
@@ -1216,9 +1235,7 @@
         const hY = player.y + (localX * sinT + localY * cosT);
 
         ctx.beginPath();
-        ctx.moveTo(hX, hY);
-        ctx.lineTo(l.x, l.y);
-        ctx.stroke();
+        drawTaperedLine(hX, hY, l.x, l.y, 2, 5);
 
         ctx.fillStyle = "#0ff";
         ctx.fillRect(l.x - 5, l.y - 5, 10, 10);
@@ -1326,7 +1343,7 @@
 
         zoomStrength = 0.04;
       } else {
-        zoomStrength = 0.0005;
+        zoomStrength = 0.0003;
       }
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
