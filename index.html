@@ -253,7 +253,7 @@
     let lastLevelIndex = localStorage.getItem('storedLevel') !== null ? parseInt(localStorage.getItem('storedLevel')) : -1, levelTimer = 0, currentLevelName = "";
     let walls = [], hazards = [], gravityZones = [], goal = { x: 0, y: 0, w: 100, h: 100 };
     let camFollX = 0, camFollY = 0, paused = false, gridShown = false, zoomStrength = 0.0005;
-    let GROUND_FRICTION = 0.87, tilt = 0;
+    let GROUND_FRICTION = 0.87, tilt = 0, lastTime = performance.now();
 
     const rand = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
     const lerp = (a, b, t) => a + (b - a) * t;
@@ -1024,7 +1024,12 @@
     }
 
     function update() {
-      if (levelTimer > 0) levelTimer--;
+      const currentTime = performance.now();
+      const deltaTime = (currentTime - lastTime) / 1000;
+      const dt = Math.min(deltaTime * 60, 2);
+      lastTime = currentTime;
+
+      if (levelTimer > 0) levelTimer -= dt;
 
       if (!controlsLocked && !paused) {
         if (grapple.active) {
@@ -1038,7 +1043,7 @@
               let fx = dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
               let fy = dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
 
-              isNaN(fx) || isNaN(fy) || (player.vx += fx, player.vy += fy)
+              isNaN(fx) || isNaN(fy) || (player.vx += fx * dt, player.vy += fy * dt)
             } else {
               grapple.attached = !1; grapple.returning = !0;
             }
@@ -1049,14 +1054,15 @@
             const speed = currentlyInGZone ? (grapple.strength / 4) : (grapple.strength / 2);
 
             const rx = (dx / dist) * speed, ry = (dy / dist) * speed;
-            grapple.x += rx; grapple.y += ry;
+            grapple.x += rx * dt; grapple.y += ry * dt;
 
             if (dist < 40) {
               const playerInGZone = gravityZones.some(z => player.x > z.x && player.x < z.x + z.w && player.y > z.y && player.y < z.y + z.h);
 
               if (player.onGround) {
                 const nx = dx / dist, ny = dy / dist;
-                player.vx += nx * (grapple.strength * 0.1); player.vy += ny * (grapple.strength * 0.1);
+                player.vx += nx * (grapple.strength * 0.1) * dt;
+                player.vy += ny * (grapple.strength * 0.1) * dt;
               }
 
               grapple.active = !1;
@@ -1074,13 +1080,21 @@
               if (tMax >= tMin && tMax > 0 && tMin < minT) { minT = tMin; hitWall = w; }
             });
 
+            let gFrameVX = grapple.vx * dt, gFrameVY = grapple.vy * dt;
+
             if (hitWall) {
-              grapple.x += grapple.vx * minT; grapple.y += grapple.vy * minT;
-              grapple.wasInGZone = gravityZones.some(z => Math.hypot(grapple.x - Math.max(z.x, Math.min(grapple.x, z.x + z.w)), grapple.y - Math.max(z.y, Math.min(grapple.y, z.y + z.h))) <= 20);
+              grapple.x += gFrameVX * minT;
+              grapple.y += gFrameVY * minT;
+              grapple.wasInGZone = gravityZones.some(z =>
+                Math.hypot(
+                  grapple.x - Math.max(z.x, Math.min(grapple.x, z.x + z.w)),
+                  grapple.y - Math.max(z.y, Math.min(grapple.y, z.y + z.h))
+                ) <= 20
+              );
               grapple.attached = !0;
             } else {
-              grapple.x += grapple.vx;
-              grapple.y += grapple.vy;
+              grapple.x += gFrameVX;
+              grapple.y += gFrameVY;
             }
 
             (hazards.some(h => grapple.x > h.x && grapple.x < h.x + h.w && grapple.y > h.y && grapple.y < h.y + h.h) ||
@@ -1090,14 +1104,15 @@
 
         if ((keys.KeyS || keys.ArrowDown) && player.canDash) {
           const a = Math.atan2(mouse.y - h / 2, mouse.x - w / 2);
-          player.vx += Math.cos(a) * 25; player.vy += Math.sin(a) * 25;
+          player.vx += Math.cos(a) * 25 * dt; player.vy += Math.sin(a) * 25 * dt;
           player.canDash = !1; player.dashCD = 40;
         }
-        player.dashCD = Math.max(0, player.dashCD - 1);
+        player.dashCD = Math.max(0, player.dashCD - dt);
         if (player.onGround && player.dashCD === 0) player.canDash = !0;
-        (keys.KeyA || keys.ArrowLeft) && (player.vx -= player.onGround ? 1.0 : AIR_CONTROL);
-        (keys.KeyD || keys.ArrowRight) && (player.vx += player.onGround ? 1.0 : AIR_CONTROL);
-        player.vx *= player.onGround ? GROUND_FRICTION : AIR_FRICTION;
+        (keys.KeyA || keys.ArrowLeft) && (player.vx -= (player.onGround ? 1.0 : AIR_CONTROL) * dt);
+        (keys.KeyD || keys.ArrowRight) && (player.vx += (player.onGround ? 1.0 : AIR_CONTROL) * dt);
+        const friction = player.onGround ? GROUND_FRICTION : AIR_FRICTION;
+        player.vx *= Math.pow(friction, dt);
         if (player.coyote > 0 && (keys.KeyW || keys.ArrowUp)) {
           player.vy = -14;
           player.coyote = 0;
@@ -1115,35 +1130,45 @@
           }
         });
 
-        player.vy += player.isJumping && player.vy < 0 ? currentGravity * .45 : currentGravity;
+        player.vy += (player.isJumping && player.vy < 0 ? currentGravity * .45 : currentGravity) * dt;
 
         player.vx = Math.max(-10000, Math.min(10000, player.vx));
         player.vy = Math.max(-10000, Math.min(10000, player.vy));
 
+        let frameVX = player.vx * dt, frameVY = player.vy * dt;
+
         let sideH = player.vx > 0 ? player.size : -player.size;
-        let rH1 = getRayWallDist(player.x + sideH, player.y - player.size + 1, player.vx, 0);
-        let rH2 = getRayWallDist(player.x + sideH, player.y + player.size - 1, player.vx, 0);
+        let rH1 = getRayWallDist(player.x + sideH, player.y - player.size + 1, frameVX, 0);
+        let rH2 = getRayWallDist(player.x + sideH, player.y + player.size - 1, frameVX, 0);
         let minTX = Math.min(rH1.t, rH2.t);
-        if (minTX < 1) { player.x += player.vx * minTX; player.vx = 0; }
-        else { player.x += player.vx; }
+
+        if (minTX < 1) {
+          player.x += frameVX * minTX;
+          player.vx = 0;
+        } else {
+          player.x += frameVX;
+        }
 
         player.onGround = !1;
         let sideV = player.vy > 0 ? player.size : -player.size;
-        let rV1 = getRayWallDist(player.x - player.size + 1, player.y + sideV, 0, player.vy);
-        let rV2 = getRayWallDist(player.x + player.size - 1, player.y + sideV, 0, player.vy);
+        let rV1 = getRayWallDist(player.x - player.size + 1, player.y + sideV, 0, frameVY);
+        let rV2 = getRayWallDist(player.x + player.size - 1, player.y + sideV, 0, frameVY);
         let minTY = Math.min(rV1.t, rV2.t);
+
         if (minTY < 1) {
-          player.y += player.vy * minTY;
+          player.y += frameVY * minTY;
           if (player.vy > 0) { player.onGround = !0; player.coyote = 10; }
           player.vy = 0;
-        } else { player.y += player.vy; }
+        } else {
+          player.y += frameVY;
+        }
 
         if (hazards.some(h => player.x + player.size > h.x && player.x - player.size < h.x + h.w && player.y + player.size > h.y && player.y - player.size < h.y + h.h)) loadLevel(false);
         if (player.x > goal.x && player.x < goal.x + goal.w && player.y > goal.y && player.y < goal.y + goal.h) loadLevel(true);
         if (player.y > 10000) loadLevel(false);
 
-        if (!player.onGround) GROUND_FRICTION = lerp(GROUND_FRICTION, 0.95, 0.1)
-        else if (player.onGround) GROUND_FRICTION = lerp(GROUND_FRICTION, 0.87, 0.05)
+        if (!player.onGround) GROUND_FRICTION = lerp(GROUND_FRICTION, 0.95, 1 - Math.pow(1 - 0.1, dt));
+        else if (player.onGround) GROUND_FRICTION = lerp(GROUND_FRICTION, 0.87, 1 - Math.pow(1 - 0.05, dt));
       }
 
       tilt = Math.max(-0.6, Math.min(0.6, player.vx * 0.05));
@@ -1174,13 +1199,15 @@
           l.stepping = !1;
         }
 
-        l.x += (l.targetX - l.x) * 0.4;
-        l.y += (l.targetY - l.y) * 0.4;
+        l.x += (l.targetX - l.x) * (1 - Math.pow(1 - 0.4, dt));;
+        l.y += (l.targetY - l.y) * (1 - Math.pow(1 - 0.4, dt));;
       });
 
       const followSpeed = 0.15;
-      camFollX += (player.x - camFollX) * followSpeed;
-      camFollY += (player.y - camFollY) * followSpeed;
+      const followFactor = 1 - Math.pow(1 - followSpeed, dt);
+
+      camFollX += (player.x - camFollX) * followFactor;
+      camFollY += (player.y - camFollY) * followFactor;
 
       const speed = Math.hypot(player.vx, player.vy);
       const mX = (mouse.x - w / 2) * 0.4;
@@ -1191,12 +1218,13 @@
       let targetX = camFollX + mX + vX - w / 2;
       let targetY = camFollY + mY + vY - h / 2;
 
-      camX += (targetX - camX) * 0.12;
-      camY += (targetY - camY) * 0.12;
+      camX += (targetX - camX) * (1 - Math.pow(1 - 0.12, dt));
+      camY += (targetY - camY) * (1 - Math.pow(1 - 0.12, dt));
 
-      camZoom += ((1 / (1 + (speed * 0.02) + (Math.hypot(mX, mY) * zoomStrength))) - camZoom) * 0.05;
+      const targetZoom = 1 / (1 + (speed * 0.02) + (Math.hypot(mX, mY) * zoomStrength));
+      camZoom += (targetZoom - camZoom) * (1 - Math.pow(1 - 0.05, dt));
 
-      player.coyote--;
+      player.coyote -= dt;
 
       render();
       requestAnimationFrame(update);
