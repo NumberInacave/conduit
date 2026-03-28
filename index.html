@@ -253,14 +253,16 @@
     let lastLevelIndex = localStorage.getItem('storedLevel') !== null ? parseInt(localStorage.getItem('storedLevel')) : -1, levelTimer = 0, currentLevelName = "";
     let walls = [], hazards = [], gravityZones = [], goal = { x: 0, y: 0, w: 100, h: 100 };
     let camFollX = 0, camFollY = 0, paused = false, gridShown = false, zoomStrength = 0.0005;
-    let GROUND_FRICTION = 0.87, tilt = 0, lastTime = performance.now();
+    let GROUND_FRICTION = 0.87, tilt = 0, taperStart = 2, taperEnd = 5;
+    let lastTime = performance.now(), accumulator = 0;
+
 
     const rand = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
     const lerp = (a, b, t) => a + (b - a) * t;
     const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
     window.onresize = resize; resize();
 
-    const AIR_CONTROL = 0.2, AIR_FRICTION = 0.98, GRAVITY = 0.9, defaultGravZoneStr = 0.34;
+    const AIR_CONTROL = 0.2, AIR_FRICTION = 0.98, GRAVITY = 0.9, defaultGravZoneStr = 0.34, deltaTime = 1000 / 60;
     const grapple = {
       x: 0, y: 0, vx: 0, vy: 0,
       elasticity: 0.006, pullStrength: 1.2, stiffness: 1, strength: 60,
@@ -1024,12 +1026,26 @@
     }
 
     function update() {
-      const currentTime = performance.now();
-      const deltaTime = (currentTime - lastTime) / 1000;
-      const dt = Math.min(deltaTime * 60, 2);
-      lastTime = currentTime;
+      const now = performance.now();
+      let frameTime = (now - lastTime) / 1000;
+      lastTime = now;
 
-      if (levelTimer > 0) levelTimer -= dt;
+      frameTime = Math.min(frameTime, 0.1);
+      accumulator += frameTime;
+
+      const fixedStep = 1 / 60;
+
+      while (accumulator >= fixedStep) {
+        step(1);
+        accumulator -= fixedStep;
+      }
+
+      render();
+      requestAnimationFrame(update);
+    }
+
+    function step(dt) {
+      if (levelTimer > 0) levelTimer -= 1;
 
       if (!controlsLocked && !paused) {
         if (grapple.active) {
@@ -1043,76 +1059,110 @@
               let fx = dx * grapple.elasticity + nx * (grapple.pullStrength * grapple.stiffness);
               let fy = dy * grapple.elasticity + ny * (grapple.pullStrength * grapple.stiffness);
 
-              isNaN(fx) || isNaN(fy) || (player.vx += fx * dt, player.vy += fy * dt)
+              if (!isNaN(fx) && !isNaN(fy)) {
+                player.vx += fx;
+                player.vy += fy;
+              }
             } else {
-              grapple.attached = !1; grapple.returning = !0;
+              grapple.attached = false;
+              grapple.returning = true;
             }
           } else if (grapple.returning) {
             const dx = player.x - grapple.x, dy = player.y - grapple.y, dist = Math.hypot(dx, dy);
 
-            const currentlyInGZone = gravityZones.some(z => grapple.x > z.x && grapple.x < z.x + z.w && grapple.y > z.y && grapple.y < z.y + z.h);
+            const currentlyInGZone = gravityZones.some(z =>
+              grapple.x > z.x && grapple.x < z.x + z.w &&
+              grapple.y > z.y && grapple.y < z.y + z.h
+            );
+
             const speed = currentlyInGZone ? (grapple.strength / 4) : (grapple.strength / 2);
 
-            const rx = (dx / dist) * speed, ry = (dy / dist) * speed;
-            grapple.x += rx * dt; grapple.y += ry * dt;
+            const rx = (dx / dist) * speed;
+            const ry = (dy / dist) * speed;
+
+            grapple.x += rx;
+            grapple.y += ry;
 
             if (dist < 40) {
-              const playerInGZone = gravityZones.some(z => player.x > z.x && player.x < z.x + z.w && player.y > z.y && player.y < z.y + z.h);
-
               if (player.onGround) {
                 const nx = dx / dist, ny = dy / dist;
-                player.vx += nx * (grapple.strength * 0.1) * dt;
-                player.vy += ny * (grapple.strength * 0.1) * dt;
+                player.vx += nx * (grapple.strength * 0.1);
+                player.vy += ny * (grapple.strength * 0.1);
               }
 
-              grapple.active = !1;
-              grapple.returning = !1;
-              grapple.wasInGZone = !1;
+              grapple.active = false;
+              grapple.returning = false;
+              grapple.wasInGZone = false;
             }
           } else {
             let minT = 1, hitWall = null;
+
             walls.forEach(w => {
-              let gvx = grapple.vx || 0.0001, gvy = grapple.vy || 0.0001;
+              let gvx = grapple.vx || 0.0001;
+              let gvy = grapple.vy || 0.0001;
+
               let tX0 = (w.x - grapple.x) / gvx, tX1 = (w.x + w.w - grapple.x) / gvx;
               let tY0 = (w.y - grapple.y) / gvy, tY1 = (w.y + w.h - grapple.y) / gvy;
+
               let tMin = Math.max(Math.min(tX0, tX1), Math.min(tY0, tY1));
               let tMax = Math.min(Math.max(tX0, tX1), Math.max(tY0, tY1));
-              if (tMax >= tMin && tMax > 0 && tMin < minT) { minT = tMin; hitWall = w; }
+
+              if (tMax >= tMin && tMax > 0 && tMin < minT) {
+                minT = tMin;
+                hitWall = w;
+              }
             });
 
-            let gFrameVX = grapple.vx * dt, gFrameVY = grapple.vy * dt;
+            let gFrameVX = grapple.vx;
+            let gFrameVY = grapple.vy;
 
             if (hitWall) {
               grapple.x += gFrameVX * minT;
               grapple.y += gFrameVY * minT;
+
               grapple.wasInGZone = gravityZones.some(z =>
                 Math.hypot(
                   grapple.x - Math.max(z.x, Math.min(grapple.x, z.x + z.w)),
                   grapple.y - Math.max(z.y, Math.min(grapple.y, z.y + z.h))
                 ) <= 20
               );
-              grapple.attached = !0;
+
+              grapple.attached = true;
             } else {
               grapple.x += gFrameVX;
               grapple.y += gFrameVY;
             }
 
-            (hazards.some(h => grapple.x > h.x && grapple.x < h.x + h.w && grapple.y > h.y && grapple.y < h.y + h.h) ||
-              Math.hypot(grapple.x - player.x, grapple.y - player.y) > 2500) && (grapple.attached = !1, grapple.returning = !0);
+            if (
+              hazards.some(h =>
+                grapple.x > h.x && grapple.x < h.x + h.w &&
+                grapple.y > h.y && grapple.y < h.y + h.h
+              ) ||
+              Math.hypot(grapple.x - player.x, grapple.y - player.y) > 2500
+            ) {
+              grapple.attached = false;
+              grapple.returning = true;
+            }
           }
         }
 
         if ((keys.KeyS || keys.ArrowDown) && player.canDash) {
           const a = Math.atan2(mouse.y - h / 2, mouse.x - w / 2);
-          player.vx += Math.cos(a) * 25 * dt; player.vy += Math.sin(a) * 25 * dt;
-          player.canDash = !1; player.dashCD = 40;
+          player.vx += Math.cos(a) * 25;
+          player.vy += Math.sin(a) * 25;
+          player.canDash = false;
+          player.dashCD = 40;
         }
-        player.dashCD = Math.max(0, player.dashCD - dt);
-        if (player.onGround && player.dashCD === 0) player.canDash = !0;
-        (keys.KeyA || keys.ArrowLeft) && (player.vx -= (player.onGround ? 1.0 : AIR_CONTROL) * dt);
-        (keys.KeyD || keys.ArrowRight) && (player.vx += (player.onGround ? 1.0 : AIR_CONTROL) * dt);
+
+        player.dashCD = Math.max(0, player.dashCD - 1);
+        if (player.onGround && player.dashCD === 0) player.canDash = true;
+
+        if (keys.KeyA || keys.ArrowLeft) player.vx -= player.onGround ? 1.0 : AIR_CONTROL;
+        if (keys.KeyD || keys.ArrowRight) player.vx += player.onGround ? 1.0 : AIR_CONTROL;
+
         const friction = player.onGround ? GROUND_FRICTION : AIR_FRICTION;
-        player.vx *= Math.pow(friction, dt);
+        player.vx *= friction;
+
         if (player.coyote > 0 && (keys.KeyW || keys.ArrowUp)) {
           player.vy = -14;
           player.coyote = 0;
@@ -1124,22 +1174,29 @@
         }
 
         let currentGravity = GRAVITY;
+
         gravityZones.forEach(z => {
-          if (player.x > z.x && player.x < z.x + z.w && player.y > z.y && player.y < z.y + z.h) {
+          if (
+            player.x > z.x && player.x < z.x + z.w &&
+            player.y > z.y && player.y < z.y + z.h
+          ) {
             currentGravity = z.strength || GRAVITY;
           }
         });
 
-        player.vy += (player.isJumping && player.vy < 0 ? currentGravity * .45 : currentGravity) * dt;
+        player.vy += (player.isJumping && player.vy < 0 ? currentGravity * .45 : currentGravity);
 
         player.vx = Math.max(-10000, Math.min(10000, player.vx));
         player.vy = Math.max(-10000, Math.min(10000, player.vy));
 
-        let frameVX = player.vx * dt, frameVY = player.vy * dt;
+        let frameVX = player.vx;
+        let frameVY = player.vy;
 
         let sideH = player.vx > 0 ? player.size : -player.size;
+
         let rH1 = getRayWallDist(player.x + sideH, player.y - player.size + 1, frameVX, 0);
         let rH2 = getRayWallDist(player.x + sideH, player.y + player.size - 1, frameVX, 0);
+
         let minTX = Math.min(rH1.t, rH2.t);
 
         if (minTX < 1) {
@@ -1149,26 +1206,44 @@
           player.x += frameVX;
         }
 
-        player.onGround = !1;
+        player.onGround = false;
+
         let sideV = player.vy > 0 ? player.size : -player.size;
+
         let rV1 = getRayWallDist(player.x - player.size + 1, player.y + sideV, 0, frameVY);
         let rV2 = getRayWallDist(player.x + player.size - 1, player.y + sideV, 0, frameVY);
+
         let minTY = Math.min(rV1.t, rV2.t);
 
         if (minTY < 1) {
           player.y += frameVY * minTY;
-          if (player.vy > 0) { player.onGround = !0; player.coyote = 10; }
+
+          if (player.vy > 0) {
+            player.onGround = true;
+            player.coyote = 10;
+          }
+
           player.vy = 0;
         } else {
           player.y += frameVY;
         }
 
-        if (hazards.some(h => player.x + player.size > h.x && player.x - player.size < h.x + h.w && player.y + player.size > h.y && player.y - player.size < h.y + h.h)) loadLevel(false);
-        if (player.x > goal.x && player.x < goal.x + goal.w && player.y > goal.y && player.y < goal.y + goal.h) loadLevel(true);
+        if (hazards.some(h =>
+          player.x + player.size > h.x &&
+          player.x - player.size < h.x + h.w &&
+          player.y + player.size > h.y &&
+          player.y - player.size < h.y + h.h
+        )) loadLevel(false);
+
+        if (
+          player.x > goal.x && player.x < goal.x + goal.w &&
+          player.y > goal.y && player.y < goal.y + goal.h
+        ) loadLevel(true);
+
         if (player.y > 10000) loadLevel(false);
 
-        if (!player.onGround) GROUND_FRICTION = lerp(GROUND_FRICTION, 0.95, 1 - Math.pow(1 - 0.1, dt));
-        else if (player.onGround) GROUND_FRICTION = lerp(GROUND_FRICTION, 0.87, 1 - Math.pow(1 - 0.05, dt));
+        if (!player.onGround) GROUND_FRICTION = lerp(GROUND_FRICTION, 0.95, 0.1);
+        else GROUND_FRICTION = lerp(GROUND_FRICTION, 0.87, 0.05);
       }
 
       tilt = Math.max(-0.6, Math.min(0.6, player.vx * 0.05));
@@ -1176,6 +1251,7 @@
       legs.forEach(l => {
         const cosT = Math.cos(tilt), sinT = Math.sin(tilt);
         const localX = l.side * 4, localY = 4;
+
         const hX = player.x + (localX * cosT - localY * sinT);
         const hY = player.y + (localX * sinT + localY * cosT);
 
@@ -1190,44 +1266,42 @@
           if (!l.stepping && !other.stepping && Math.hypot(l.x - (hX + (l.side * 6)), l.y - groundY) > 8) {
             l.targetX = hX + (l.side * 6) + (player.vx * 0.4);
             l.targetY = groundY;
-            l.stepping = !0;
+            l.stepping = true;
           }
-          if (l.stepping && Math.hypot(l.x - l.targetX, l.y - l.targetY) < 2) l.stepping = !1;
+
+          if (l.stepping && Math.hypot(l.x - l.targetX, l.y - l.targetY) < 2) {
+            l.stepping = false;
+          }
         } else {
           l.targetX = hX + airRepel + Math.max(-12, Math.min(12, -player.vx * 0.1));
           l.targetY = hY + Math.max(-12, Math.min(12, -player.vy * 0.1));
-          l.stepping = !1;
+          l.stepping = false;
         }
 
-        l.x += (l.targetX - l.x) * (1 - Math.pow(1 - 0.4, dt));;
-        l.y += (l.targetY - l.y) * (1 - Math.pow(1 - 0.4, dt));;
+        l.x += (l.targetX - l.x) * 0.4;
+        l.y += (l.targetY - l.y) * 0.4;
       });
 
-      const followSpeed = 0.15;
-      const followFactor = 1 - Math.pow(1 - followSpeed, dt);
-
-      camFollX += (player.x - camFollX) * followFactor;
-      camFollY += (player.y - camFollY) * followFactor;
+      camFollX += (player.x - camFollX) * 0.15;
+      camFollY += (player.y - camFollY) * 0.15;
 
       const speed = Math.hypot(player.vx, player.vy);
       const mX = (mouse.x - w / 2) * 0.4;
       const mY = (mouse.y - h / 2) * 0.4;
+
       const vX = player.vx * 6;
       const vY = player.vy * 6;
 
       let targetX = camFollX + mX + vX - w / 2;
       let targetY = camFollY + mY + vY - h / 2;
 
-      camX += (targetX - camX) * (1 - Math.pow(1 - 0.12, dt));
-      camY += (targetY - camY) * (1 - Math.pow(1 - 0.12, dt));
+      camX += (targetX - camX) * 0.12;
+      camY += (targetY - camY) * 0.12;
 
       const targetZoom = 1 / (1 + (speed * 0.02) + (Math.hypot(mX, mY) * zoomStrength));
-      camZoom += (targetZoom - camZoom) * (1 - Math.pow(1 - 0.05, dt));
+      camZoom += (targetZoom - camZoom) * 0.05;
 
-      player.coyote -= dt;
-
-      render();
-      requestAnimationFrame(update);
+      player.coyote -= 1;
     }
 
     function render() {
@@ -1249,7 +1323,7 @@
         ctx.strokeStyle = grapple.attached ? "#0ff" : (grapple.returning ? "#511" : "#888");
         ctx.lineWidth = 5;
         ctx.beginPath();
-        drawTaperedLine(player.x, player.y, grapple.x, grapple.y, 2, 5);
+        drawTaperedLine(player.x, player.y, grapple.x, grapple.y, taperStart, taperEnd);
 
         ctx.fillStyle = ctx.strokeStyle;
         ctx.fillRect(grapple.x - 5, grapple.y - 5, 10, 10);
@@ -1264,7 +1338,7 @@
         const hY = player.y + (localX * sinT + localY * cosT);
 
         ctx.beginPath();
-        drawTaperedLine(hX, hY, l.x, l.y, 2, 5);
+        drawTaperedLine(hX, hY, l.x, l.y, taperStart, taperEnd);
 
         ctx.fillStyle = "#0ff";
         ctx.fillRect(l.x - 5, l.y - 5, 10, 10);
